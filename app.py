@@ -5,11 +5,22 @@ app = Flask(__name__)
 coletas = []
 next_id = 1 
 
-# METODOS FALTANTO (APAGUE ESTE COMENTARIO) <----
 
-# Consultar todas as coletas  <--- /coletas <--- GET
+# Consultar todas as coletas
+@app.route('/coletas', methods=['GET'])
+def get_coletas():
+    if coletas:
+        return jsonify(coletas), 200
+    return jsonify({"message": "Coletas não encontradas"}), 404
+
 # Excluir coleta por id <--- (/coletas/id) <--- DELETE
-
+@app.route('/coletas/<int:coleta_id>', methods=['DELETE'])
+def delete_coleta_by_id(coleta_id):
+    for coleta in coletas: 
+        if coleta.get('id') == coleta_id:
+            coletas.remove(coleta)
+            return jsonify(coleta), 200
+    return jsonify({"message": "Coleta não deletada"}), 404
 
 
 # Consultar coleta por ID
