@@ -1,0 +1,46 @@
+from flask import Flask, jsonify, request
+
+app = Flask(__name__)
+
+coletas = []
+next_id = 1 
+
+# METODOS FALTANTO (APAGUE ESTE COMENTARIO) <----
+
+# Consultar todas as coletas  <--- /coletas <--- GET
+# Excluir coleta por id <--- (/coletas/id) <--- DELETE
+
+
+
+# Consultar coleta por ID
+@app.route('/coletas/<int:coleta_id>', methods=['GET'])
+def get_coleta_by_id(coleta_id):
+    for coleta in coletas:
+        if coleta.get('id') == coleta_id:
+            return jsonify(coleta), 200
+    return jsonify({"message": "Coleta não encontrada"}), 404
+
+# Editar coleta
+@app.route('/coletas/<int:coleta_id>', methods=['PUT'])
+def update_coleta(coleta_id):
+    update_coleta = request.get_json()
+    for coleta in coletas:
+        if coleta.get('id') == coleta_id:
+            coleta.update(update_coleta)
+            return jsonify(coleta), 200
+    return jsonify({"message": "Coleta não encontrada"}), 404
+
+# Criar coleta
+@app.route('/coletas', methods=['POST'])
+def create_coleta():
+    global next_id
+    new_coleta = request.get_json()
+    new_coleta['id'] = next_id 
+    coletas.append(new_coleta)
+    next_id += 1
+    return jsonify(new_coleta), 201
+
+
+
+# Rodar o servidor
+app.run(port=8000, host='localhost', debug=True)
