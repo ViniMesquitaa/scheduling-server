@@ -1,0 +1,31 @@
+# Ignora todas as pastas node_modules
+**/node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# Arquivos de ambiente
+.env
+.env.*.local
+
+# Configurações de editores
+.vscode/
+.idea/
+
+# Builds
+dist/
+build/
+
+# Cobertura de testes
+coverage/
+
+# Arquivos temporários
+*.tgz

@@ -9,8 +9,13 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "express": "^5.1.0"
+    "@prisma/client": "^6.8.2",
+    "express": "^5.1.0",
+    "mysql2": "^3.14.1",
+    "pg": "^8.16.0"
   },
-  "devDependencies": {},
-  "description": ""
+  "description": "",
+  "devDependencies": {
+    "prisma": "^6.8.2"
+  }
 }
