@@ -1,0 +1,41 @@
+DB_NAME = sistema_coletas
+crie um banco com esse nome e faça um .env para por suas infos
+
+USUARIO {
+    {
+  "nome": "Vinicius",
+  "email": "vinicius1121@exemplo.com",
+  "senha": "senha123",
+  "tipo_usuario": "admin"
+}
+}
+
+CLIENTE {
+    {
+  "nome_cliente": "João Silva",
+  "telefone_cliente": "11999998888",
+  "qr_code": "QR123456789",
+  "nome_rua": "Rua das Flores",
+  "numero": 123,
+  "nome_zona": "Zona Sul"
+}
+
+}
+
+AGENDAMENTOS {
+    {
+  "dia_agendado": "2025-05-20",
+  "turno_agendado": "manhã",
+  "dia_realizado": "2025-05-20",
+  "horario_realizado": "08:30:00",
+  "id_cliente": 11,
+  "id_usuario": 8
+}
+
+}
+
+ENDOPOINTS PARA POST, GET, DELETE E PUT
+
+/agendamentos/
+/clientes/
+/usuarios/
