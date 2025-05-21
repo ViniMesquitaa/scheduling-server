@@ -30,6 +30,40 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Buscar cliente e agendamentos pendentes por telefone
+router.get('/pendentes/:telefone', async (req, res) => {
+  const { telefone } = req.params;
+
+  try {
+    // Verifica se o cliente existe pelo número de telefone
+    const [[cliente]] = await pool.query(
+      'SELECT id_cliente, nome_cliente FROM clientes WHERE telefone_cliente = ?',
+      [telefone]
+    );
+
+    if (!cliente) {
+      return res.status(404).json({ error: 'Cliente não encontrado' });
+    }
+
+    // Busca agendamentos pendentes (sem data e hora de realização)
+    const [agendamentos] = await pool.query(
+      `SELECT dia_agendado, turno_agendado 
+       FROM agendamentos 
+       WHERE id_cliente = ? AND (dia_realizado IS NULL OR horario_realizado IS NULL)`,
+      [cliente.id_cliente]
+    );
+
+    res.status(200).json({
+      nome_cliente: cliente.nome_cliente,
+      agendamentos_pendentes: agendamentos // pode estar vazio, e tudo bem
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao buscar agendamentos pendentes' });
+  }
+});
+
+
 // Listar todos os agendamentos
 router.get('/', async (req, res) => {
   try {
