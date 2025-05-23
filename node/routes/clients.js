@@ -1,176 +1,199 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const pool = require("../db");
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+const crypto = require('crypto');
 
-// Criar cliente com endereço e zona (criar zona se não existir)
-router.post("/", async (req, res) => {
-  const {
-    nome_cliente,
-    telefone_cliente,
-    qr_code,
-    nome_rua,
-    numero,
-    nome_zona,
-  } = req.body;
+// Gera QR code único (8 caracteres hex)
+function gerarQRCodeUnico() {
+  return 'QR' + crypto.randomBytes(4).toString('hex').toUpperCase();
+}
+
+// Criar cliente com endereço embutido, gera QR code automaticamente
+router.post('/', async (req, res) => {
+  const { nome_cliente, telefone_cliente, email, endereco } = req.body;
 
   if (
     !nome_cliente ||
     !telefone_cliente ||
-    !qr_code ||
-    !nome_rua ||
-    !numero ||
-    !nome_zona
+    !email ||
+    !endereco ||
+    !endereco.nome_rua ||
+    !endereco.bairro ||
+    !endereco.numero
   ) {
-    return res.status(400).json({ error: "Todos os campos são obrigatórios" });
+    return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
   }
 
   try {
-    //Verificar se a zona já existe
-    const [zonas] = await pool.query(
-      "SELECT id_zona FROM zonas WHERE nome_zona = ?",
-      [nome_zona]
-    );
-
-    let id_zona;
-    if (zonas.length > 0) {
-      id_zona = zonas[0].id_zona;
-    } else {
-      //Criar nova zona
-      const [zonaResult] = await pool.query(
-        "INSERT INTO zonas (nome_zona) VALUES (?)",
-        [nome_zona]
-      );
-      id_zona = zonaResult.insertId;
+    // Verificar se já existe cliente com mesmo telefone para evitar duplicação
+    const clienteExistente = await prisma.cliente.findFirst({
+      where: { telefone_cliente },
+    });
+    if (clienteExistente) {
+      return res.status(409).json({ error: 'Telefone já cadastrado' });
     }
 
-    //Inserir endereço com id_zona
-    const [enderecoResult] = await pool.query(
-      "INSERT INTO enderecos (nome_rua, numero, id_zona) VALUES (?, ?, ?)",
-      [nome_rua, numero, id_zona]
-    );
+    const qr_code = gerarQRCodeUnico();
 
-    const id_endereco = enderecoResult.insertId;
+    const novoCliente = await prisma.cliente.create({
+      data: {
+        nome_cliente,
+        telefone_cliente,
+        email,
+        qr_code,
+        qtd_coletas_realizadas: 0,
+        endereco: {
+          create: {
+            nome_rua: endereco.nome_rua,
+            bairro: endereco.bairro,
+            numero: endereco.numero,
+          },
+        },
+      },
+      include: { endereco: true },
+    });
 
-    //Inserir cliente com id_endereco
-    const [clienteResult] = await pool.query(
-      "INSERT INTO clientes (qr_code, nome_cliente, telefone_cliente, qtd_coletas_realizadas, id_endereco) VALUES (?, ?, ?, 0, ?)",
-      [qr_code, nome_cliente, telefone_cliente, id_endereco]
-    );
-
-    //Buscar cliente criado
-    const [rows] = await pool.query(
-      `SELECT c.*, e.nome_rua, e.numero, z.nome_zona
-       FROM clientes c
-       LEFT JOIN enderecos e ON c.id_endereco = e.id_endereco
-       LEFT JOIN zonas z ON e.id_zona = z.id_zona
-       WHERE c.id_cliente = ?`,
-      [clienteResult.insertId]
-    );
-
-    res.status(201).json(rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(400).json({ error: "Erro ao criar cliente" });
+    res.status(201).json(novoCliente);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Erro ao criar cliente' });
   }
 });
 
-//Listar todos os clientes
-router.get("/", async (req, res) => {
+// Listar todos os clientes com endereço
+router.get('/', async (req, res) => {
   try {
-    const [rows] = await pool.query(
-      `SELECT c.*, e.nome_rua, e.numero, e.id_zona
-       FROM clientes c
-       LEFT JOIN enderecos e ON c.id_endereco = e.id_endereco`
-    );
-    res.status(200).json(rows);
-  } catch (err) {
-    res.status(500).json({ error: "Erro ao buscar clientes" });
+    const clientes = await prisma.cliente.findMany({
+      include: { endereco: true },
+    });
+    res.status(200).json(clientes);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Erro ao buscar clientes' });
   }
 });
 
-//Buscar cliente por telefone
-router.get("/:telefone", async (req, res) => {
-  const telefone = req.params.telefone;
+// Buscar cliente por telefone com endereço
+router.get('/:telefone', async (req, res) => {
+  const { telefone } = req.params;
   try {
-    const [rows] = await pool.query(
-      `SELECT c.*, e.nome_rua, e.numero, e.id_zona
-       FROM clientes c
-       LEFT JOIN enderecos e ON c.id_endereco = e.id_endereco
-       WHERE c.telefone_cliente = ?`,
-      [telefone]
-    );
-    if (rows.length > 0) {
-      res.status(200).json(rows[0]);
-    } else {
-      res.status(404).json({ message: "Cliente não encontrado" });
+    const cliente = await prisma.cliente.findFirst({
+      where: { telefone_cliente: telefone },
+      include: { endereco: true },
+    });
+    if (!cliente) {
+      return res.status(404).json({ message: 'Cliente não encontrado' });
     }
-  } catch (err) {
-    res.status(500).json({ error: "Erro ao buscar cliente" });
+    res.status(200).json(cliente);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Erro ao buscar cliente' });
   }
 });
 
-//Atualizar cliente (nome, qr_code) pelo telefone
-router.put("/:telefone", async (req, res) => {
-  const telefone = req.params.telefone;
-  const { nome_cliente, qr_code } = req.body;
+// Atualizar cliente e endereço por telefone
+router.put('/:telefone', async (req, res) => {
+  const { telefone } = req.params;
+  const { nome_cliente, telefone_cliente: novoTelefone, email, endereco } = req.body;
+
+  if (
+    !nome_cliente ||
+    !novoTelefone ||
+    !email ||
+    !endereco ||
+    !endereco.nome_rua ||
+    !endereco.bairro ||
+    !endereco.numero
+  ) {
+    return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
+  }
 
   try {
-    const [result] = await pool.query(
-      "UPDATE clientes SET nome_cliente = ?, qr_code = ? WHERE telefone_cliente = ?",
-      [nome_cliente, qr_code, telefone]
-    );
+    const clienteExistente = await prisma.cliente.findFirst({
+      where: { telefone_cliente: telefone },
+      include: { endereco: true },
+    });
 
-    if (result.affectedRows > 0) {
-      const [rows] = await pool.query(
-        `SELECT c.*, e.nome_rua, e.numero, e.id_zona
-         FROM clientes c
-         LEFT JOIN enderecos e ON c.id_endereco = e.id_endereco
-         WHERE c.telefone_cliente = ?`,
-        [telefone]
-      );
-      res.status(200).json(rows[0]);
-    } else {
-      res.status(404).json({ message: "Cliente não encontrado" });
+    if (!clienteExistente) {
+      return res.status(404).json({ message: 'Cliente não encontrado' });
     }
-  } catch (err) {
-    res.status(500).json({ error: "Erro ao atualizar cliente" });
+
+    // Se o telefone foi alterado, verificar se o novo telefone já existe para outro cliente
+    if (novoTelefone !== telefone) {
+      const telefoneDuplicado = await prisma.cliente.findFirst({
+        where: { telefone_cliente: novoTelefone },
+      });
+      if (telefoneDuplicado) {
+        return res.status(409).json({ error: 'Novo telefone já cadastrado para outro cliente' });
+      }
+    }
+
+    // Atualiza endereço relacionado
+    await prisma.endereco.update({
+      where: { id_endereco: clienteExistente.endereco.id_endereco },
+      data: {
+        nome_rua: endereco.nome_rua,
+        bairro: endereco.bairro,
+        numero: endereco.numero,
+      },
+    });
+
+    // Atualiza cliente
+    const clienteAtualizado = await prisma.cliente.update({
+      where: { id_cliente: clienteExistente.id_cliente },
+      data: {
+        nome_cliente,
+        telefone_cliente: novoTelefone,
+        email,
+      },
+      include: { endereco: true },
+    });
+
+    res.status(200).json(clienteAtualizado);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Erro ao atualizar cliente' });
   }
 });
 
-//Deletar cliente e endereço relacionado pelo telefone
-router.delete("/:telefone", async (req, res) => {
-  const telefone = req.params.telefone;
+// Deletar cliente e endereço por telefone
+// Deletar cliente e endereço por telefone
+router.delete('/:telefone', async (req, res) => {
+  const { telefone } = req.params;
 
   try {
-    //Primeiro, buscar o cliente para pegar o id_endereco
-    const [clienteRows] = await pool.query(
-      "SELECT id_endereco FROM clientes WHERE telefone_cliente = ?",
-      [telefone]
-    );
+    const cliente = await prisma.cliente.findFirst({
+      where: { telefone_cliente: telefone },
+      include: { endereco: true },
+    });
 
-    if (clienteRows.length === 0) {
-      return res.status(404).json({ message: "Cliente não encontrado" });
+    if (!cliente) {
+      return res.status(404).json({ message: 'Cliente não encontrado' });
     }
 
-    const id_endereco = clienteRows[0].id_endereco;
+    // Deleta cliente primeiro (ele tem FK para o endereço)
+    await prisma.cliente.delete({
+      where: { id_cliente: cliente.id_cliente },
+    });
 
-    //Deletar cliente
-    await pool.query("DELETE FROM clientes WHERE telefone_cliente = ?", [
-      telefone,
-    ]);
+    // Depois tenta deletar o endereço, se não estiver mais sendo usado
+    await prisma.endereco.delete({
+      where: { id_endereco: cliente.endereco.id_endereco },
+    });
 
-    //Deletar endereço associado, se existir
-    if (id_endereco) {
-      await pool.query("DELETE FROM enderecos WHERE id_endereco = ?", [
-        id_endereco,
-      ]);
+    res.status(200).json({ message: 'Cliente e endereço deletados com sucesso' });
+  } catch (error) {
+    console.error(error);
+
+    // Caso o endereço ainda esteja sendo usado por outro cliente
+    if (error.code === 'P2003') {
+      return res.status(409).json({ error: 'Endereço ainda está em uso por outro registro' });
     }
 
-    res.status(200).json({ message: "Cliente e endereço foram deletados" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erro ao deletar cliente" });
+    res.status(500).json({ error: 'Erro ao deletar cliente' });
   }
 });
+
 
 module.exports = router;

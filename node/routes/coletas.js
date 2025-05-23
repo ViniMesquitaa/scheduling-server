@@ -1,57 +1,114 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
 
-let coletas = []; 
-let nextId = 1;
+// Criar nova coleta
+router.post("/", async (req, res) => {
+  const { clienteId, diaRealizado, horarioRealizado, qtdColetas } = req.body;
 
-// GET /coletas - Listar todas as coletas
-router.get('/', (req, res) => {
-  if (coletas.length > 0) {
-    res.status(200).json(coletas);
-  } else {
-    res.status(404).json({ message: "Coletas não encontradas" });
+  try {
+    const coleta = await prisma.coleta.create({
+      data: {
+        clienteId,
+        diaRealizado: new Date(diaRealizado),
+        horarioRealizado,
+        qtdColetas: Number(qtdColetas),
+      },
+    });
+
+    res.status(201).json(coleta);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Erro ao criar coleta" });
   }
 });
 
-// GET /coletas/{id} - Obter uma coleta pelo ID
-router.get('/:id', (req, res) => {
-  const coleta = coletas.find(c => c.id === parseInt(req.params.id));
-  if (coleta) {
+// Listar todas as coletas com dados do cliente
+router.get("/", async (req, res) => {
+  try {
+    const coletas = await prisma.coleta.findMany({
+      include: {
+        cliente: true,
+      },
+    });
+
+    const resultado = coletas.map(coleta => ({
+      id: coleta.id,
+      nomeCliente: coleta.cliente.nome,
+      diaRealizado: coleta.diaRealizado,
+      horarioRealizado: coleta.horarioRealizado,
+      zona: coleta.cliente.bairro, // ou outro campo que represente "zona"
+      qtdColetas: coleta.qtdColetas,
+    }));
+
+    res.status(200).json(resultado);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Erro ao listar coletas" });
+  }
+});
+
+// Buscar coleta por ID
+router.get("/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const coleta = await prisma.coleta.findUnique({
+      where: { id },
+      include: { cliente: true },
+    });
+
+    if (!coleta) {
+      return res.status(404).json({ message: "Coleta não encontrada" });
+    }
+
+    res.status(200).json({
+      id: coleta.id,
+      nomeCliente: coleta.cliente.nome,
+      diaRealizado: coleta.diaRealizado,
+      horarioRealizado: coleta.horarioRealizado,
+      zona: coleta.cliente.bairro,
+      qtdColetas: coleta.qtdColetas,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Erro ao buscar coleta" });
+  }
+});
+
+// Atualizar coleta por ID
+router.put("/:id", async (req, res) => {
+  const { id } = req.params;
+  const { diaRealizado, horarioRealizado, qtdColetas } = req.body;
+
+  try {
+    const coleta = await prisma.coleta.update({
+      where: { id },
+      data: {
+        diaRealizado: new Date(diaRealizado),
+        horarioRealizado,
+        qtdColetas: Number(qtdColetas),
+      },
+    });
+
     res.status(200).json(coleta);
-  } else {
-    res.status(404).json({ message: "Coleta não encontrada" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Erro ao atualizar coleta" });
   }
 });
 
-// POST /coletas - Criar uma nova coleta
-router.post('/', (req, res) => {
-  const novaColeta = req.body;
-  novaColeta.id = nextId++;
-  coletas.push(novaColeta);
-  res.status(201).json(novaColeta);
-});
+// Deletar coleta por ID
+router.delete("/:id", async (req, res) => {
+  const { id } = req.params;
 
-// PUT /coletas/{id} - Atualizar uma coleta
-router.put('/:id', (req, res) => {
-  const id = parseInt(req.params.id);
-  const coleta = coletas.find(c => c.id === id);
-  if (coleta) {
-    Object.assign(coleta, req.body);
-    res.status(200).json(coleta);
-  } else {
-    res.status(404).json({ message: "Coleta não encontrada" });
-  }
-});
-
-// DELETE /coletas/{id} - Deletar uma coleta
-router.delete('/:id', (req, res) => {
-  const id = parseInt(req.params.id);
-  const index = coletas.findIndex(c => c.id === id);
-  if (index !== -1) {
-    const removida = coletas.splice(index, 1)[0];
-    res.status(200).json(removida);
-  } else {
-    res.status(404).json({ message: "Coleta não deletada" });
+  try {
+    await prisma.coleta.delete({ where: { id } });
+    res.status(200).json({ message: "Coleta deletada com sucesso" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Erro ao deletar coleta" });
   }
 });
 

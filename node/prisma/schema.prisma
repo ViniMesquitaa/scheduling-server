@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Agendamento {
+  id_agendamento Int      @id @default(autoincrement())
+  dia_agendado   DateTime
+  turno_agendado String
+  observacoes    String?
+  id_cliente     Int
+  id_usuario     Int
+  id_zona        Int?
+
+  cliente Cliente @relation(fields: [id_cliente], references: [id_cliente])
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
+  zona    Zona?   @relation(fields: [id_zona], references: [id_zona])
+}
+
+model Cliente {
+  id_cliente             Int           @id @default(autoincrement())
+  nome_cliente           String
+  telefone_cliente       String
+  email                  String
+  qr_code                String?
+  qtd_coletas_realizadas Int           @default(0)
+  id_endereco            Int
+  endereco               Endereco      @relation(fields: [id_endereco], references: [id_endereco], onDelete: Cascade)
+  Agendamento            Agendamento[]
+  Coleta                 Coleta[]
+}
+
+model Coleta {
+  id_coleta         Int      @id @default(autoincrement())
+  dia_realizado     DateTime
+  horario_realizado DateTime
+  id_cliente        Int
+  id_usuario        Int
+
+  cliente Cliente @relation(fields: [id_cliente], references: [id_cliente])
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
+}
+
+model Endereco {
+  id_endereco Int       @id @default(autoincrement())
+  nome_rua    String
+  bairro      String
+  numero      String
+  id_zona     Int?
+  zona        Zona?     @relation(fields: [id_zona], references: [id_zona])
+  Cliente     Cliente[]
+}
+
+model Usuario {
+  id_usuario   Int    @id @default(autoincrement())
+  nome         String
+  email        String @unique
+  senha        String
+  tipo_usuario String
+
+  Agendamento Agendamento[]
+  Coleta      Coleta[]
+}
+
+model Zona {
+  id_zona               Int    @id @default(autoincrement())
+  nome_zona             String @db.VarChar(100)
+  qtd_coletas_esperadas Int
+  dias_coleta           String @db.VarChar(100)
+
+  enderecos   Endereco[]
+  Agendamento Agendamento[]
+}

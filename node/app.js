@@ -1,10 +1,18 @@
 const express = require('express');
 const app = express();
+const cors = require ( 'cors' ); // Importar o pacote cors 
 const coletasRoutes = require('./routes/coletas');
 const clients = require('./routes/clients')
 const usuarios = require('./routes/usuarios')
 const agendamento = require('./routes/agendamentos')
 const zona = require('./routes/zonas')
+
+const corsOptions = { 
+    credentials : true , 
+    origin : [ 'http://localhost:5173' , 'http://localhost:8000' ]
+ }; 
+
+app. use ( cors (corsOptions)); 
 
 app.use(express.json());
 
