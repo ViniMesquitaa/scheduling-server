@@ -16,22 +16,21 @@ model Agendamento {
   id_usuario     Int
   id_zona        Int?
 
-  cliente Cliente @relation(fields: [id_cliente], references: [id_cliente])
+  cliente Cliente @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade)
   usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
-  zona    Zona?   @relation(fields: [id_zona], references: [id_zona])
+  zona    Zona?   @relation(fields: [id_zona], references: [id])
 }
 
 model Cliente {
-  id_cliente             Int           @id @default(autoincrement())
-  nome_cliente           String
-  telefone_cliente       String
-  email                  String
-  qr_code                String?
-  qtd_coletas_realizadas Int           @default(0)
-  id_endereco            Int
-  endereco               Endereco      @relation(fields: [id_endereco], references: [id_endereco], onDelete: Cascade)
-  Agendamento            Agendamento[]
-  Coleta                 Coleta[]
+  id_cliente       Int           @id @default(autoincrement())
+  nome_cliente     String
+  telefone_cliente String        @unique
+  qr_code          String?       @unique
+  id_endereco      Int
+
+  endereco     Endereco   @relation(fields: [id_endereco], references: [id_endereco], onDelete: Cascade)
+  agendamentos Agendamento[]
+  coletas      Coleta[]
 }
 
 model Coleta {
@@ -41,18 +40,19 @@ model Coleta {
   id_cliente        Int
   id_usuario        Int
 
-  cliente Cliente @relation(fields: [id_cliente], references: [id_cliente])
+  cliente Cliente @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade)
   usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
 }
 
 model Endereco {
-  id_endereco Int       @id @default(autoincrement())
+  id_endereco Int     @id @default(autoincrement())
   nome_rua    String
-  bairro      String
   numero      String
-  id_zona     Int?
-  zona        Zona?     @relation(fields: [id_zona], references: [id_zona])
-  Cliente     Cliente[]
+  bairro      String
+  id_zona     Int
+
+  zona     Zona      @relation(fields: [id_zona], references: [id])
+  clientes Cliente[]
 }
 
 model Usuario {
@@ -62,16 +62,17 @@ model Usuario {
   senha        String
   tipo_usuario String
 
-  Agendamento Agendamento[]
-  Coleta      Coleta[]
+  agendamentos Agendamento[]
+  coletas      Coleta[]
 }
 
 model Zona {
-  id_zona               Int    @id @default(autoincrement())
-  nome_zona             String @db.VarChar(100)
+  id                    Int      @id @default(autoincrement())
+  nome_da_zona          String   @unique
   qtd_coletas_esperadas Int
-  dias_coleta           String @db.VarChar(100)
+  dias                  Json
+  cor                   String
 
-  enderecos   Endereco[]
-  Agendamento Agendamento[]
+  enderecos    Endereco[]
+  agendamentos Agendamento[]
 }
