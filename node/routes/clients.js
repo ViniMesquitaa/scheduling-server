@@ -112,6 +112,39 @@ router.get('/:telefone', async (req, res) => {
   }
 });
 
+router.get('/consulta-cliente-telefone/:telefone', async (req, res) => {
+  const { telefone } = req.params;
+  try {
+   const cliente = await prisma.cliente.findUnique({
+      where: {
+        telefone_cliente: telefone
+      },
+      include: {
+        agendamentos: {
+          select: {
+            data_agendamento: true,
+            turno_agendamento: true
+          }
+        }
+      }
+    });
+
+    if(!cliente) {
+      return res.status(404).json({ error: 'Cliente não encontrado'});
+    }
+
+    const temAgendamento = cliente.agendamentos.length > 0;
+
+    res.status(200).json({
+      nome_cliente: cliente.nome_cliente,
+      tem_agendamento: temAgendamento,
+      agendamentos: temAgendamento ? cliente.agendamentos : []
+    });
+  } catch ( error) {
+    res.status(500).json({ error: 'Erro ao buscar o cliente'})
+  }
+});
+
 // Atualizar cliente e endereço por telefone
 router.put('/:telefone', async (req, res) => {
   const { telefone } = req.params;
