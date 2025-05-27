@@ -8,17 +8,21 @@ datasource db {
 }
 
 model Agendamento {
-  id_agendamento Int      @id @default(autoincrement())
-  dia_agendado   DateTime
-  turno_agendado String
-  observacoes    String?
-  id_cliente     Int
-  id_usuario     Int
-  id_zona        Int?
+  id_agendamento     Int      @id @default(autoincrement())
+  dia_agendado       DateTime
+  turno_agendado     String
+  observacoes        String?
+  dia_realizado      DateTime?    // Adicionado
+  horario_realizado  String?      // Adicionado
+  id_cliente         Int
+  id_usuario         Int
+  id_zona            Int?
 
   cliente Cliente @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade)
   usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
   zona    Zona?   @relation(fields: [id_zona], references: [id])
+
+  @@map("agendamentos")
 }
 
 model Cliente {
@@ -31,6 +35,8 @@ model Cliente {
   endereco     Endereco   @relation(fields: [id_endereco], references: [id_endereco], onDelete: Cascade)
   agendamentos Agendamento[]
   coletas      Coleta[]
+
+  @@map("clientes")
 }
 
 model Coleta {
@@ -42,6 +48,8 @@ model Coleta {
 
   cliente Cliente @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade)
   usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@map("coletas")
 }
 
 model Endereco {
@@ -53,6 +61,8 @@ model Endereco {
 
   zona     Zona      @relation(fields: [id_zona], references: [id])
   clientes Cliente[]
+
+  @@map("enderecos")
 }
 
 model Usuario {
@@ -64,6 +74,8 @@ model Usuario {
 
   agendamentos Agendamento[]
   coletas      Coleta[]
+
+  @@map("usuarios")
 }
 
 model Zona {
@@ -75,4 +87,6 @@ model Zona {
 
   enderecos    Endereco[]
   agendamentos Agendamento[]
+
+  @@map("zonas")
 }

@@ -4,35 +4,53 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 // Criar agendamento
-// Criar agendamento com zona
 router.post('/', async (req, res) => {
-  const {
-    dia_agendado,
-    turno_agendado,
-    observacoes,
-    id_cliente,
-    id_usuario,
-    id_zona
-  } = req.body;
+  const { dia_agendado, turno_agendado, observacoes, id_cliente, id_usuario } = req.body;
 
-  if (!dia_agendado || !turno_agendado || !id_cliente || !id_usuario || !id_zona) {
+  if (!dia_agendado || !turno_agendado || !id_cliente || !id_usuario) {
     return res.status(400).json({ error: 'Campos obrigatórios não preenchidos' });
   }
 
   try {
+    const cliente = await prisma.cliente.findUnique({
+      where: { id_cliente: Number(id_cliente) },
+      include: {
+        endereco: {
+          include: { zona: true } // já incluir zona para conferir direto aqui
+        }
+      }
+    });
+
+    if (!cliente) {
+      return res.status(404).json({ error: 'Cliente não encontrado' });
+    }
+
+    if (!cliente.endereco || !cliente.endereco.id_zona) {
+      return res.status(400).json({ error: 'Zona do cliente não encontrada' });
+    }
+
+    // Debug para garantir id_zona está vindo
+    console.log('Zona do cliente:', cliente.endereco.zona);
+
     const agendamento = await prisma.agendamento.create({
       data: {
         dia_agendado: new Date(dia_agendado),
         turno_agendado,
-        observacoes,
-        id_cliente,
-        id_usuario,
-        id_zona
+        observacoes: observacoes || null,
+        id_cliente: Number(id_cliente),
+        id_usuario: Number(id_usuario),
+        id_zona: cliente.endereco.id_zona // usar id_zona do cliente,
       },
       include: {
-        cliente: true,
-        zona: true
-      }
+        cliente: {
+          include: {
+            endereco: {
+              include: { zona: true }
+            }
+          }
+        },
+        zona: true // incluir zona direto no agendamento para facilitar acesso
+      },
     });
 
     res.status(201).json(formatAgendamento(agendamento));
@@ -45,20 +63,23 @@ router.post('/', async (req, res) => {
 // Listar todos os agendamentos
 router.get('/', async (req, res) => {
   try {
-    const agendamentos = await prisma.agendamento.findMany({
+   const agendamentos = await prisma.agendamento.findMany({
+  include: {
+    zona: true, // traz a zona relacionada pelo id_zona
+    cliente: {
       include: {
-        cliente: {
-          include: {
-            endereco: {
-              include: { zona: true }
-            }
-          }
+        endereco: {
+          include: { zona: true } // essa zona é do endereço do cliente
         }
       }
-    });
+    }
+  }
+});
+
 
     res.status(200).json(agendamentos.map(formatAgendamento));
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Erro ao buscar agendamentos' });
   }
 });
@@ -80,15 +101,19 @@ router.get('/pendentes', async (req, res) => {
               include: { zona: true }
             }
           }
-        }
+        },
+        zona: true
       }
     });
 
     res.status(200).json(agendamentos.map(formatAgendamento));
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Erro ao buscar agendamentos pendentes' });
   }
 });
+
+
 
 // Atualizar agendamento
 router.put('/:id', async (req, res) => {
@@ -112,7 +137,8 @@ router.put('/:id', async (req, res) => {
               include: { zona: true }
             }
           }
-        }
+        },
+        zona: true
       }
     });
 
@@ -134,21 +160,21 @@ router.delete('/:id', async (req, res) => {
 
     res.status(200).json({ message: 'Agendamento deletado com sucesso' });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Erro ao deletar agendamento' });
   }
 });
 
-// 🔁 Função para formatar a resposta
+// Formatar resposta
 function formatAgendamento(a) {
   return {
     id_agendamento: a.id_agendamento,
-    nome_cliente: a.cliente.nome_cliente,
-    zona: a.zona?.nome_zona,
+    nome_cliente: a.cliente?.nome_cliente || null,
+    zona: a.zona?.nome_da_zona || null, // zona pega direto da relação agendamento -> zona
     data_coleta: a.dia_agendado,
     turno: a.turno_agendado,
-    observacoes: a.observacoes
+    observacoes: a.observacoes,
   };
 }
-
 
 module.exports = router;
