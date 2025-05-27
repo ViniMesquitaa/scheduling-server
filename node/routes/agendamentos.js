@@ -60,6 +60,59 @@ router.post('/', async (req, res) => {
   }
 });
 
+router.post('/agendamentos', async (req, res) => {
+  const { telefone_cliente, dia_agendado, turno_agendado, id_usuario, observacoes } = req.body;
+
+  if (!dia_agendado || !turno_agendado || !telefone_cliente || !id_usuario) {
+    return res.status(400).json({ error: 'Campos obrigatórios não preenchidos' });
+  }
+
+  try {
+    const cliente = await prisma.cliente.findUnique({
+      where: { telefone_cliente },
+      include: {
+        endereco: {
+          include: { zona: true }
+        }
+      }
+    });
+
+    if (!cliente) {
+      return res.status(404).json({ erro: 'Cliente não encontrado com esse telefone.' });
+    }
+
+    if (!cliente.endereco || !cliente.endereco.id_zona) {
+      return res.status(400).json({ error: 'Zona do cliente não encontrada' });
+    }
+
+    const agendamento = await prisma.agendamento.create({
+      data: {
+        dia_agendado: new Date(dia_agendado),
+        turno_agendado,
+        observacoes,
+        id_cliente: cliente.id_cliente,
+        id_usuario,  
+        id_zona: cliente.endereco.id_zona     
+      },
+      include: {
+        cliente: {
+          include: {
+            endereco: {
+              include: { zona: true }
+            }
+          }
+        },
+        zona: true 
+      },
+    });
+
+    res.status(201).json(formatAgendamento(agendamento));
+  } catch (err) {
+     console.error(err);
+    res.status(500).json({ erro: 'Erro interno ao criar o agendamento.' });
+  }
+});
+
 // Listar todos os agendamentos
 router.get('/', async (req, res) => {
   try {
