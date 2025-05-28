@@ -60,7 +60,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-//Criação de agendamento através do telefone do cliente
+//Criação de agendamento através do telefone do cliente(Chatbot)
 router.post('/agendamentos', async (req, res) => {
   const { telefone_cliente, dia_agendado, turno_agendado, id_usuario, observacoes } = req.body;
 
@@ -203,7 +203,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-//Atualização de agendamento através do telefone do cliente
+//Atualização de agendamento através do telefone do cliente(Chatbot)
 router.put('/agendamentos/telefone/:telefone_cliente', async (req, res) => {
   const { telefone_cliente } = req.params;
   const { dia_agendado, turno_agendado, observacoes, dia_realizado, horario_realizado } = req.body;
@@ -268,6 +268,41 @@ router.delete('/:id', async (req, res) => {
   try {
     await prisma.agendamento.delete({
       where: { id_agendamento: parseInt(id) }
+    });
+
+    res.status(200).json({ message: 'Agendamento deletado com sucesso' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao deletar agendamento' });
+  }
+});
+
+//Cancelar agendamento do cliente através do telefone
+router.delete('/agendamentos/telefone/:telefone_cliente', async (req, res) => {
+  const { telefone_cliente } = req.params;
+
+  try {
+    const cliente = await prisma.cliente.findUnique({
+      where: { telefone_cliente },
+      include: {
+        agendamentos: true 
+      }
+    });
+
+    if (!cliente) {
+      return res.status(404).json({ error: 'Cliente não encontrado com esse telefone.' });
+    }
+
+    const agendamentoExistente = await prisma.agendamento.findUnique({
+      where: { id_agendamento: cliente.agendamentos.id_agendamento }
+    });
+
+    if (!agendamentoExistente) {
+      return res.status(404).json({ error: 'Agendamento não encontrado.' });
+    }
+    
+    await prisma.agendamento.delete({
+      where: { id_agendamento: agendamentoExistente.id_agendamento}
     });
 
     res.status(200).json({ message: 'Agendamento deletado com sucesso' });
