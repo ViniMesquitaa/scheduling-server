@@ -60,6 +60,7 @@ router.post('/', async (req, res) => {
   }
 });
 
+//Criação de agendamento através do telefone do cliente
 router.post('/agendamentos', async (req, res) => {
   const { telefone_cliente, dia_agendado, turno_agendado, id_usuario, observacoes } = req.body;
 
@@ -201,6 +202,64 @@ router.put('/:id', async (req, res) => {
     res.status(500).json({ error: 'Erro ao atualizar agendamento' });
   }
 });
+
+//Atualização de agendamento através do telefone do cliente
+router.put('/agendamentos/telefone/:telefone_cliente', async (req, res) => {
+  const { telefone_cliente } = req.params;
+  const { dia_agendado, turno_agendado, observacoes, dia_realizado, horario_realizado } = req.body;
+
+  try {
+    const cliente = await prisma.cliente.findUnique({
+      where: { telefone_cliente },
+      include: {
+        endereco: {
+          include: { zona: true }
+        },
+        agendamentos: true 
+      }
+    });
+
+    if (!cliente) {
+      return res.status(404).json({ error: 'Cliente não encontrado com esse telefone.' });
+    }
+
+    const agendamentoExistente = await prisma.agendamento.findUnique({
+      where: { id_agendamento: cliente.agendamentos.id_agendamento }
+    });
+
+    if (!agendamentoExistente) {
+      return res.status(404).json({ error: 'Agendamento não encontrado.' });
+    }
+
+    const agendamentoAtualizado = await prisma.agendamento.update({
+      where: { id_agendamento: agendamentoExistente.id_agendamento },
+      data: {
+        dia_agendado: dia_agendado ? new Date(dia_agendado) : undefined,
+        turno_agendado,
+        observacoes,
+        dia_realizado: dia_realizado ? new Date(dia_realizado) : undefined,
+        horario_realizado: horario_realizado ? new Date(horario_realizado) : undefined,
+        id_zona: cliente.endereco.zona.id
+      },
+      include: {
+        cliente: {
+          include: {
+            endereco: {
+              include: { zona: true }
+            }
+          }
+        },
+        zona: true
+      }
+    });
+
+    res.status(200).json(formatAgendamento(agendamentoAtualizado));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao atualizar o agendamento.' });
+  }
+});
+
 
 // Deletar agendamento
 router.delete('/:id', async (req, res) => {
