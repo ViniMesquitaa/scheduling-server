@@ -101,7 +101,7 @@ router.put('/:id', async (req, res) => {
 
   try {
     const zona = await prisma.zona.update({
-      where: { id_zona: id },
+      where: { id: id },
       data: {
         nome_da_zona,
         qtd_coletas_esperadas,
@@ -125,9 +125,11 @@ router.delete('/:id', async (req, res) => {
   const id = Number(req.params.id);
 
   try {
-    await prisma.zona.delete({
-      where: { id_zona: id }
-    });
+   await prisma.zona.deleteMany({
+  where: {
+    id: id
+  }
+});
 
     res.status(200).json({ message: 'Zona deletada com sucesso' });
   } catch (err) {

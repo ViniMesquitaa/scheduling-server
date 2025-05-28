@@ -122,8 +122,8 @@ router.get('/consulta-cliente-telefone/:telefone', async (req, res) => {
       include: {
         agendamentos: {
           select: {
-            data_agendamento: true,
-            turno_agendamento: true
+            dia_agendado: true,
+            turno_agendado: true
           }
         }
       }
