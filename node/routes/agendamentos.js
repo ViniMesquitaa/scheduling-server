@@ -167,8 +167,6 @@ router.get('/pendentes', async (req, res) => {
   }
 });
 
-
-
 // Atualizar agendamento
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
@@ -200,6 +198,45 @@ router.put('/:id', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erro ao atualizar agendamento' });
+  }
+});
+
+//Atualização(baixa) no agendamento(Coletor)
+router.put('/agendamentos/registro', async (req, res) => {
+  const { qr_code, dia_realizado, hora_realizado} = req.body;
+
+  try {
+    const cliente = await prisma.cliente.findUnique({
+      where: { qr_code }, 
+      include: {
+        agendamentos: true
+      }
+    });
+
+    if (!cliente) {
+      return res.status(404).json({ error: 'Cliente não encontrado com esse QR Code.' });
+    }
+
+    const agendamentoExistente = await prisma.agendamento.findUnique({
+      where: { id_agendamento: cliente.agendamentos.id_agendamento }
+    });
+
+    if (!agendamentoExistente) {
+      return res.status(404).json({ error: 'Agendamento não encontrado.' });
+    }
+
+    const agendamentoRealizado = await prisma.agendamento.update({
+      where: { id_agendamento: agendamentoExistente.id_agendamento }, 
+      data: {
+        dia_realizado: dia_realizado ? new Date(dia_realizado) : undefined,
+        horario_realizado: hora_realizado || undefined
+      }
+    });
+
+    res.status(200).json(formatAgendamento(agendamentoRealizado));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao dar baixa no agendamento.' });
   }
 });
 
@@ -237,8 +274,8 @@ router.put('/agendamentos/telefone/:telefone_cliente', async (req, res) => {
         dia_agendado: dia_agendado ? new Date(dia_agendado) : undefined,
         turno_agendado,
         observacoes,
-        dia_realizado: dia_realizado ? new Date(dia_realizado) : undefined,
-        horario_realizado: horario_realizado ? new Date(horario_realizado) : undefined,
+        // dia_realizado: dia_realizado ? new Date(dia_realizado) : undefined, RETIRAR?
+        // horario_realizado: horario_realizado ? new Date(horario_realizado) : undefined, RETIRAR?
         id_zona: cliente.endereco.zona.id
       },
       include: {
