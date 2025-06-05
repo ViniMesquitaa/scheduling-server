@@ -64,7 +64,7 @@ router.post("/", async (req, res) => {
 });
 
 //Criação de agendamento através do telefone do cliente(Chatbot)
-router.post("/agendamentos", async (req, res) => {
+router.post("/telefone", async (req, res) => {
   const {
     telefone_cliente,
     dia_agendado,
@@ -74,9 +74,7 @@ router.post("/agendamentos", async (req, res) => {
   } = req.body;
 
   if (!dia_agendado || !turno_agendado || !telefone_cliente || !id_usuario) {
-    return res
-      .status(400)
-      .json({ error: "Campos obrigatórios não preenchidos" });
+    return res.status(400).json({ error: "Campos obrigatórios não preenchidos" });
   }
 
   try {
@@ -249,7 +247,7 @@ router.put("/:id", async (req, res) => {
 });
 
 //Atualização(baixa) no agendamento(Coletor)
-router.put("/agendamentos/registro", async (req, res) => {
+router.put("/registro", async (req, res) => {
   const { qr_code, dia_realizado, hora_realizado } = req.body;
 
   try {
@@ -266,8 +264,13 @@ router.put("/agendamentos/registro", async (req, res) => {
         .json({ error: "Cliente não encontrado com esse QR Code." });
     }
 
+    const agendamento = cliente.agendamentos[0]; 
+    if (!agendamento) {
+      return res.status(404).json({ error: "Agendamento não encontrado." });
+    }
+
     const agendamentoExistente = await prisma.agendamento.findUnique({
-      where: { id_agendamento: cliente.agendamentos.id_agendamento },
+      where: { id_agendamento: agendamento.id_agendamento },
     });
 
     if (!agendamentoExistente) {
@@ -290,7 +293,7 @@ router.put("/agendamentos/registro", async (req, res) => {
 });
 
 //Atualização de agendamento através do telefone do cliente(Chatbot)
-router.put("/agendamentos/telefone/:telefone_cliente", async (req, res) => {
+router.put("/telefone/:telefone_cliente", async (req, res) => {
   const { telefone_cliente } = req.params;
   const {
     dia_agendado,
@@ -317,8 +320,14 @@ router.put("/agendamentos/telefone/:telefone_cliente", async (req, res) => {
         .json({ error: "Cliente não encontrado com esse telefone." });
     }
 
+
+    const agendamento = cliente.agendamentos[0]; 
+    if (!agendamento) {
+      return res.status(404).json({ error: "Agendamento não encontrado." });
+    }
+
     const agendamentoExistente = await prisma.agendamento.findUnique({
-      where: { id_agendamento: cliente.agendamentos.id_agendamento },
+      where: { id_agendamento: agendamento.id_agendamento },
     });
 
     if (!agendamentoExistente) {
@@ -371,7 +380,7 @@ router.delete("/:id", async (req, res) => {
 });
 
 //Cancelar agendamento do cliente através do telefone
-router.delete("/agendamentos/telefone/:telefone_cliente", async (req, res) => {
+router.delete("/telefone/:telefone_cliente", async (req, res) => {
   const { telefone_cliente } = req.params;
 
   try {
@@ -388,12 +397,17 @@ router.delete("/agendamentos/telefone/:telefone_cliente", async (req, res) => {
         .json({ error: "Cliente não encontrado com esse telefone." });
     }
 
+    const agendamento = cliente.agendamentos[1]; 
+    if (!agendamento) {
+      return res.status(404).json({ error: "Agendamento não encontrado." });
+    }
+
     const agendamentoExistente = await prisma.agendamento.findUnique({
-      where: { id_agendamento: cliente.agendamentos.id_agendamento },
+      where: { id_agendamento: agendamento.id_agendamento },
     });
 
     if (!agendamentoExistente) {
-      return res.status(404).json({ error: "Agendamento não encontrado." });
+      return res.status(404).json({ error: "Agendamento Existente não encontrado." });
     }
 
     await prisma.agendamento.delete({

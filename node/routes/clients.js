@@ -112,6 +112,7 @@ router.get('/:telefone', async (req, res) => {
   }
 });
 
+//Consultar cliente através do telefone
 router.get('/consulta-cliente-telefone/:telefone', async (req, res) => {
   const { telefone } = req.params;
   try {
