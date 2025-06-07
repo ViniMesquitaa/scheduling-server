@@ -7,6 +7,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum StatusAgendamento {
+  PENDENTE
+  REALIZADO
+  CANCELADO
+}
+
 model Agendamento {
   id_agendamento     Int      @id @default(autoincrement())
   dia_agendado       DateTime
@@ -17,6 +23,7 @@ model Agendamento {
   id_cliente         Int
   id_usuario         Int
   id_zona            Int?
+  status             StatusAgendamento @default(PENDENTE)
 
   cliente Cliente @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade)
   usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
@@ -25,12 +32,18 @@ model Agendamento {
   @@map("agendamentos")
 }
 
+enum TipoCliente {
+  GRANDE_GERADOR
+  PEQUENO_GERADOR
+}
+
 model Cliente {
   id_cliente       Int           @id @default(autoincrement())
   nome_cliente     String
   telefone_cliente String        @unique
   qr_code          String?       @unique
   id_endereco      Int
+  tipo             TipoCliente   @default(PEQUENO_GERADOR)
 
   endereco     Endereco   @relation(fields: [id_endereco], references: [id_endereco], onDelete: Cascade)
   agendamentos Agendamento[]
