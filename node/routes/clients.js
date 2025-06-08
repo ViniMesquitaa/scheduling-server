@@ -146,63 +146,6 @@ router.get('/consulta-cliente-telefone/:telefone', async (req, res) => {
   }
 });
 
-//Endpoint para coletar dados para fazer relatório de coletas realizadas por cliente
-router.get('/coletas-realizadas/:id', async (req, res) => {
- const { id } = req.params;
-
-  try {
-    const cliente = await prisma.cliente.findUnique({
-      where: { id_cliente: Number(id) },
-      include: {
-        coletas: {
-          where: {
-            dia_realizado: { not: null },
-            hora_realizado: { not: null }
-          },
-          select: {
-            id_coleta: true,
-            dia_realizado: true,
-            horario_realizado: true,
-            usuario: {
-              select: {
-                nome: true
-              }
-            }
-          }
-        },
-        agendamentos: {
-          where: {
-            status: "REALIZADO"
-          },
-          select: {
-            id_agendamento: true,
-            dia_realizado: true,
-            horario_realizado: true,
-            status: true,
-            usuario: {
-              select: {
-                nome: true
-              }
-            }
-          }
-        }
-      }
-    });
-
-    if (!cliente) {
-      return res.status(404).json({ error: 'Cliente não encontrado' });
-    }
-
-    res.status(200).json({
-      nome_cliente: cliente.nome_cliente,
-      coletas_realizadas: cliente.coletas
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Erro ao buscar coletas realizadas' });
-  }
-});
-
 // Atualizar cliente e endereço por telefone
 router.put('/:telefone', async (req, res) => {
   const { telefone } = req.params;
