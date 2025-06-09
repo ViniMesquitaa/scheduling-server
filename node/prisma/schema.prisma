@@ -40,10 +40,11 @@ enum TipoCliente {
 model Cliente {
   id_cliente       Int           @id @default(autoincrement())
   nome_cliente     String
+  tipo             TipoCliente   @default(PEQUENO_GERADOR)
   telefone_cliente String        @unique
   qr_code          String?       @unique
   id_endereco      Int
-  tipo             TipoCliente   @default(PEQUENO_GERADOR)
+  
 
   endereco     Endereco   @relation(fields: [id_endereco], references: [id_endereco], onDelete: Cascade)
   agendamentos Agendamento[]
