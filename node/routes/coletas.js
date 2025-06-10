@@ -24,6 +24,35 @@ router.post("/", async (req, res) => {
   }
 });
 
+router.post("/coleta-qrcode", async (req, res) => {
+  const {qr_code, diaRealizado, horarioRealizado, id_usuario} = req.body;
+
+  try {
+    const cliente = await prisma.cliente.findUnique({
+      where: { qr_code },
+      include: { endereco: true},
+    });
+
+    if (!cliente) {
+      return res.status(404).json({ error: "Cliente não encontrado" });
+    }
+
+    const coleta = await prisma.coleta.create({
+      data: {
+        id_cliente: cliente.id_cliente,
+        dia_realizado: new Date(diaRealizado),
+        horario_realizado: horarioRealizado,
+        id_usuario,
+      },
+    });
+
+    res.status(201).json(coleta);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Erro ao criar coleta" });
+  }
+});
+
 // Listar todas as coletas com dados do cliente
 router.get("/", async (req, res) => {
   try {

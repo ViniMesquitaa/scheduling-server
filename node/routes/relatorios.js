@@ -151,6 +151,15 @@ router.get('/coletas-realizadas/:id', async (req, res) => {
 router.get('/coletas-previstas', async (req, res) => {
   const { startDate, endDate, idZona} = req.query;
 
+  const dataInicio = new Date(startDate);
+  const dataFim = new Date(endDate);
+  const diffEmMs = dataFim - dataInicio;
+  const diffEmDias = diffEmMs / (1000 * 60 * 60 * 24);
+  
+  if (diffEmDias > 31) {
+    return res.status(400).json({ error: "O intervalo entre as datas não pode ultrapassar 31 dias." });
+  }
+
   try {
     const agendamentos = await prisma.agendamento.findMany({
       where: {
