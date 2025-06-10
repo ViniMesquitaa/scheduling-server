@@ -4,41 +4,46 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const crypto = require("crypto");
 
-// Função para gerar QR code único
 function gerarQRCodeUnico() {
   return "QR" + crypto.randomBytes(4).toString("hex").toUpperCase();
+}
+
+function validarDadosCliente(dados) {
+  return (
+    dados.nome_cliente &&
+    dados.tipo &&
+    dados.telefone_cliente &&
+    dados.id_zona &&
+    dados.endereco &&
+    dados.endereco.nome_rua &&
+    dados.endereco.bairro &&
+    dados.endereco.numero
+  );
+}
+
+async function verificarZonaExistente(id_zona, res) {
+  const zona = await prisma.zona.findUnique({ where: { id: id_zona } });
+  if (!zona) {
+    res.status(400).json({ error: "Zona não encontrada com o id fornecido" });
+    return false;
+  }
+  return true;
 }
 
 router.post("/", async (req, res) => {
   let { nome_cliente, tipo, telefone_cliente, id_zona, endereco, qr_code } =
     req.body;
 
-  // Gera QR code se não foi enviado
   if (!qr_code) {
     qr_code = gerarQRCodeUnico();
   }
 
-  // Validação
-  if (
-    !nome_cliente ||
-    !tipo ||
-    !telefone_cliente ||
-    !id_zona ||
-    !endereco ||
-    !endereco.nome_rua ||
-    !endereco.bairro ||
-    !endereco.numero
-  ) {
+  if (!validarDadosCliente(req.body)) {
     return res.status(400).json({ error: "Todos os campos são obrigatórios" });
   }
 
   try {
-    const zona = await prisma.zona.findUnique({ where: { id: id_zona } });
-    if (!zona) {
-      return res
-        .status(400)
-        .json({ error: "Zona não encontrada com o id fornecido" });
-    }
+    if (!(await verificarZonaExistente(id_zona, res))) return;
 
     const clienteExistente = await prisma.cliente.findUnique({
       where: { telefone_cliente },
@@ -79,12 +84,11 @@ router.post("/", async (req, res) => {
 
     res.status(201).json(cliente);
   } catch (error) {
-    console.error(error);
+    console.error("Erro ao criar cliente:", error);
     res.status(500).json({ error: "Erro ao criar cliente" });
   }
 });
 
-// Listar todos os clientes com endereço e zona
 router.get("/", async (req, res) => {
   try {
     const clientes = await prisma.cliente.findMany({
@@ -93,15 +97,17 @@ router.get("/", async (req, res) => {
           include: { zona: true },
         },
       },
+      orderBy: {
+        nome_cliente: "asc",
+      },
     });
     res.status(200).json(clientes);
   } catch (error) {
-    console.error(error);
+    console.error("Erro ao buscar clientes:", error);
     res.status(500).json({ error: "Erro ao buscar clientes" });
   }
 });
 
-// Buscar cliente por telefone
 router.get("/:telefone", async (req, res) => {
   const { telefone } = req.params;
   try {
@@ -118,12 +124,11 @@ router.get("/:telefone", async (req, res) => {
 
     res.status(200).json(cliente);
   } catch (error) {
-    console.error(error);
+    console.error("Erro ao buscar cliente:", error);
     res.status(500).json({ error: "Erro ao buscar cliente" });
   }
 });
 
-//Consultar cliente através do telefone
 router.get("/consulta-cliente-telefone/:telefone", async (req, res) => {
   const { telefone } = req.params;
   try {
@@ -153,6 +158,7 @@ router.get("/consulta-cliente-telefone/:telefone", async (req, res) => {
       agendamentos: temAgendamento ? cliente.agendamentos : [],
     });
   } catch (error) {
+    console.error("Erro ao buscar cliente:", error);
     res.status(500).json({ error: "Erro ao buscar o cliente" });
   }
 });
@@ -168,27 +174,11 @@ router.put("/:telefone", async (req, res) => {
     qr_code,
   } = req.body;
 
-  if (
-    !nome_cliente ||
-    !tipo ||
-    !novoTelefone ||
-    !endereco ||
-    !endereco.nome_rua ||
-    !endereco.bairro ||
-    !endereco.numero ||
-    !id_zona
-  ) {
+  if (!validarDadosCliente(req.body)) {
     return res.status(400).json({ error: "Todos os campos são obrigatórios" });
   }
 
-  const generateQRCodeIfEmpty = (qr) => {
-   if (!qr || qr.trim() === "") {
-    return gerarQRCodeUnico();
-  }
-  return qr;
-  };
-
-  const qrCodeFinal = generateQRCodeIfEmpty(qr_code);
+  const qrCodeFinal = qr_code?.trim() ? qr_code : gerarQRCodeUnico();
 
   try {
     const clienteExistente = await prisma.cliente.findUnique({
@@ -209,12 +199,7 @@ router.put("/:telefone", async (req, res) => {
       }
     }
 
-    const zona = await prisma.zona.findUnique({ where: { id: id_zona } });
-    if (!zona) {
-      return res
-        .status(400)
-        .json({ error: "Zona não encontrada com o id fornecido" });
-    }
+    if (!(await verificarZonaExistente(id_zona, res))) return;
 
     await prisma.endereco.update({
       where: { id_endereco: clienteExistente.endereco.id_endereco },
@@ -241,19 +226,24 @@ router.put("/:telefone", async (req, res) => {
 
     res.status(200).json(clienteAtualizado);
   } catch (error) {
-    console.error(error);
+    console.error("Erro ao atualizar cliente:", error);
     res.status(500).json({ error: "Erro ao atualizar cliente" });
   }
 });
 
-// Deletar cliente por telefone
 router.delete("/:telefone", async (req, res) => {
   const { telefone } = req.params;
 
   try {
     const cliente = await prisma.cliente.findUnique({
       where: { telefone_cliente: telefone },
-      include: { endereco: true },
+      include: {
+        endereco: {
+          include: {
+            clientes: true,
+          },
+        },
+      },
     });
 
     if (!cliente) {
@@ -264,15 +254,19 @@ router.delete("/:telefone", async (req, res) => {
       where: { id_cliente: cliente.id_cliente },
     });
 
-    res
-      .status(200)
-      .json({ message: "Cliente e endereço deletados com sucesso" });
+    if (cliente.endereco.clientes.length === 1) {
+      await prisma.endereco.delete({
+        where: { id_endereco: cliente.endereco.id_endereco },
+      });
+    }
+
+    res.status(200).json({ message: "Cliente deletado com sucesso" });
   } catch (error) {
-    console.error(error);
+    console.error("Erro ao deletar cliente:", error);
     if (error.code === "P2003") {
-      return res
-        .status(409)
-        .json({ error: "Registro em uso por outro recurso" });
+      return res.status(409).json({
+        error: "Não é possível deletar - cliente possui registros associados",
+      });
     }
     res.status(500).json({ error: "Erro ao deletar cliente" });
   }
