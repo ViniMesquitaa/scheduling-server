@@ -7,49 +7,39 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum StatusAgendamento {
-  PENDENTE
-  REALIZADO
-  CANCELADO
-}
-
 model Agendamento {
-  id_agendamento     Int      @id @default(autoincrement())
-  dia_agendado       DateTime
-  turno_agendado     String
-  observacoes        String?
-  dia_realizado      DateTime?    // Adicionado
-  horario_realizado  String?      // Adicionado
-  id_cliente         Int
-  id_usuario         Int
-  id_zona            Int?
-  status             StatusAgendamento @default(PENDENTE)
+  id_agendamento    Int               @id @default(autoincrement())
+  dia_agendado      DateTime
+  turno_agendado    String
+  observacoes       String?
+  dia_realizado     DateTime?
+  horario_realizado String?
+  id_cliente        Int
+  id_usuario        Int
+  id_zona           Int?
+  status            StatusAgendamento @default(PENDENTE)
+  cliente           Cliente           @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade)
+  usuario           Usuario           @relation(fields: [id_usuario], references: [id_usuario])
+  zona              Zona?             @relation(fields: [id_zona], references: [id])
 
-  cliente Cliente @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade)
-  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
-  zona    Zona?   @relation(fields: [id_zona], references: [id])
-
+  @@index([id_cliente], map: "agendamentos_id_cliente_fkey")
+  @@index([id_usuario], map: "agendamentos_id_usuario_fkey")
+  @@index([id_zona], map: "agendamentos_id_zona_fkey")
   @@map("agendamentos")
-}
-
-enum TipoCliente {
-  GRANDE_GERADOR
-  PEQUENO_GERADOR
 }
 
 model Cliente {
   id_cliente       Int           @id @default(autoincrement())
   nome_cliente     String
-  tipo             TipoCliente   @default(PEQUENO_GERADOR)
   telefone_cliente String        @unique
   qr_code          String?       @unique
   id_endereco      Int
-  
+  tipo             TipoCliente   @default(PEQUENO_GERADOR)
+  agendamentos     Agendamento[]
+  endereco         Endereco      @relation(fields: [id_endereco], references: [id_endereco], onDelete: Cascade)
+  coletas          Coleta[]
 
-  endereco     Endereco   @relation(fields: [id_endereco], references: [id_endereco], onDelete: Cascade)
-  agendamentos Agendamento[]
-  coletas      Coleta[]
-
+  @@index([id_endereco], map: "clientes_id_endereco_fkey")
   @@map("clientes")
 }
 
@@ -59,33 +49,33 @@ model Coleta {
   horario_realizado DateTime
   id_cliente        Int
   id_usuario        Int
+  cliente           Cliente  @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade)
+  usuario           Usuario  @relation(fields: [id_usuario], references: [id_usuario])
 
-  cliente Cliente @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade)
-  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
-
+  @@index([id_cliente], map: "coletas_id_cliente_fkey")
+  @@index([id_usuario], map: "coletas_id_usuario_fkey")
   @@map("coletas")
 }
 
 model Endereco {
-  id_endereco Int     @id @default(autoincrement())
+  id_endereco Int       @id @default(autoincrement())
   nome_rua    String
   numero      String
   bairro      String
   id_zona     Int
+  clientes    Cliente[]
+  zona        Zona      @relation(fields: [id_zona], references: [id])
 
-  zona     Zona      @relation(fields: [id_zona], references: [id])
-  clientes Cliente[]
-
+  @@index([id_zona], map: "enderecos_id_zona_fkey")
   @@map("enderecos")
 }
 
 model Usuario {
-  id_usuario   Int    @id @default(autoincrement())
+  id_usuario   Int           @id @default(autoincrement())
   nome         String
-  email        String @unique
+  email        String        @unique
   senha        String
   tipo_usuario String
-
   agendamentos Agendamento[]
   coletas      Coleta[]
 
@@ -93,14 +83,24 @@ model Usuario {
 }
 
 model Zona {
-  id                    Int      @id @default(autoincrement())
-  nome_da_zona          String   @unique
+  id                    Int           @id @default(autoincrement())
+  nome_da_zona          String        @unique
   qtd_coletas_esperadas Int
   dias                  Json
   cor                   String
-
-  enderecos    Endereco[]
-  agendamentos Agendamento[]
+  agendamentos          Agendamento[]
+  enderecos             Endereco[]
 
   @@map("zonas")
+}
+
+enum StatusAgendamento {
+  PENDENTE
+  REALIZADO
+  CANCELADO
+}
+
+enum TipoCliente {
+  GRANDE_GERADOR
+  PEQUENO_GERADOR
 }

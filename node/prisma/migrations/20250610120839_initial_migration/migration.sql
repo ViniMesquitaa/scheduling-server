@@ -9,7 +9,11 @@ CREATE TABLE `agendamentos` (
     `id_cliente` INTEGER NOT NULL,
     `id_usuario` INTEGER NOT NULL,
     `id_zona` INTEGER NULL,
+    `status` ENUM('PENDENTE', 'REALIZADO', 'CANCELADO') NOT NULL DEFAULT 'PENDENTE',
 
+    INDEX `agendamentos_id_cliente_fkey`(`id_cliente`),
+    INDEX `agendamentos_id_usuario_fkey`(`id_usuario`),
+    INDEX `agendamentos_id_zona_fkey`(`id_zona`),
     PRIMARY KEY (`id_agendamento`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -20,9 +24,11 @@ CREATE TABLE `clientes` (
     `telefone_cliente` VARCHAR(191) NOT NULL,
     `qr_code` VARCHAR(191) NULL,
     `id_endereco` INTEGER NOT NULL,
+    `tipo` ENUM('GRANDE_GERADOR', 'PEQUENO_GERADOR') NOT NULL DEFAULT 'PEQUENO_GERADOR',
 
     UNIQUE INDEX `clientes_telefone_cliente_key`(`telefone_cliente`),
     UNIQUE INDEX `clientes_qr_code_key`(`qr_code`),
+    INDEX `clientes_id_endereco_fkey`(`id_endereco`),
     PRIMARY KEY (`id_cliente`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -34,6 +40,8 @@ CREATE TABLE `coletas` (
     `id_cliente` INTEGER NOT NULL,
     `id_usuario` INTEGER NOT NULL,
 
+    INDEX `coletas_id_cliente_fkey`(`id_cliente`),
+    INDEX `coletas_id_usuario_fkey`(`id_usuario`),
     PRIMARY KEY (`id_coleta`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -45,6 +53,7 @@ CREATE TABLE `enderecos` (
     `bairro` VARCHAR(191) NOT NULL,
     `id_zona` INTEGER NOT NULL,
 
+    INDEX `enderecos_id_zona_fkey`(`id_zona`),
     PRIMARY KEY (`id_endereco`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
