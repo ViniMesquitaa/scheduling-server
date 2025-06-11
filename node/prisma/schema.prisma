@@ -82,6 +82,18 @@ model Usuario {
   @@map("usuarios")
 }
 
+model Admin {
+  id_admin    Int      @id @default(autoincrement())
+  nome        String
+  email       String   @unique
+  senha       String
+  criado_em   DateTime @default(now())
+  atualizado_em DateTime @updatedAt
+
+  @@map("admin")
+}
+
+
 model Zona {
   id                    Int           @id @default(autoincrement())
   nome_da_zona          String        @unique
