@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const { montarFiltros, agruparPorCliente } = require("../utils/relatoriosUtils");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
@@ -89,42 +90,48 @@ router.get("/coletas-por-cliente", async (req, res) => {
   }
 });
 
-// Rota 3: Endpoint para coletas e agendamentos realizados por cliente
-router.get('/coletas-realizadas/:id', async (req, res) => {
- const { id } = req.params;
+router.get('/coletas-realizadas', async (req, res) => {
+  const { nomeCliente, nomeZona, startDate, endDate } = req.query;
+
+  if (!nomeCliente && !nomeZona && !(startDate && endDate)) {
+    return res.status(400).json({
+      error: "Informe pelo menos um filtro: nomeCliente, nomeZona ou período (startDate e endDate)."
+    });
+  }
 
   try {
-    const cliente = await prisma.cliente.findUnique({
-      where: { id_cliente: Number(id) },
-      include: {
-        coletas: {
-          where: {
-            dia_realizado: { not: null },
-            hora_realizado: { not: null }
-          },
+    // Monta filtros dinâmicos usando a função utilitária
+    let zonaId = null;
+    if (nomeZona) {
+      const zona = await prisma.zona.findUnique({
+        where: { nome_da_zona: nomeZona }
+      });
+      if (!zona) {
+        return res.status(404).json({ error: 'Zona não encontrada' });
+      }
+      zonaId = zona.id;
+    }
+
+    const { filtroColeta, filtroAgendamento } = montarFiltros({
+      nomeCliente,
+      startDate,
+      endDate,
+      zonaId
+    });
+
+    // Busca coletas e agendamentos conforme os filtros
+    const coletas = await prisma.coleta.findMany({
+      where: filtroColeta,
+      select: {
+        id_coleta: true,
+        dia_realizado: true,
+        cliente: {
           select: {
-            id_coleta: true,
-            dia_realizado: true,
-            horario_realizado: true,
-            usuario: {
+            id_cliente: true,
+            nome_cliente: true,
+            endereco: {
               select: {
-                nome: true
-              }
-            }
-          }
-        },
-        agendamentos: {
-          where: {
-            status: "REALIZADO"
-          },
-          select: {
-            id_agendamento: true,
-            dia_realizado: true,
-            horario_realizado: true,
-            status: true,
-            usuario: {
-              select: {
-                nome: true
+                zona: { select: { nome_da_zona: true } }
               }
             }
           }
@@ -132,102 +139,299 @@ router.get('/coletas-realizadas/:id', async (req, res) => {
       }
     });
 
-    if (!cliente) {
-      return res.status(404).json({ error: 'Cliente não encontrado' });
-    }
-
-    res.status(200).json({
-      nome_cliente: cliente.nome_cliente,
-      coletas_realizadas: cliente.coletas,
-      agendamentos_realizados: cliente.agendamentos
+    const agendamentos = await prisma.agendamento.findMany({
+      where: filtroAgendamento,
+      select: {
+        id_agendamento: true,
+        dia_realizado: true,
+        cliente: {
+          select: {
+            id_cliente: true,
+            nome_cliente: true,
+            endereco: {
+              select: {
+                zona: { select: { nome_da_zona: true } }
+              }
+            }
+          }
+        }
+      }
     });
+
+    // Usa a função utilitária para agrupar por cliente e montar o resultado final
+    const resultado = agruparPorCliente(coletas, agendamentos);
+
+    res.status(200).json(resultado);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Erro ao buscar coletas realizadas' });
+    res.status(500).json({ error: "Erro ao buscar coletas realizadas" });
   }
 });
 
-//Rota 4: Agendamentos e Coletas Previstos para determinado período
-router.get('/coletas-previstas', async (req, res) => {
-  const { startDate, endDate, idZona} = req.query;
+// Rota 3: Endpoint para coletas e agendamentos realizados por cliente
+// router.get('/coletas-realizadas', async (req, res) => {
+//  const { nomeCliente, nomeZona, startDate, endDate } = req.query;
 
+//   try {
+//     const cliente = await prisma.cliente.findUnique({
+//       where: { nome_cliente: nomeCliente },
+//       include: {
+//         coletas: {
+//           where: {
+//             dia_realizado: { not: null },
+//             hora_realizado: { not: null }
+//           },
+//           select: {
+//             id_coleta: true,
+//             dia_realizado: true,
+//             horario_realizado: true,
+//             usuario: {
+//               select: {
+//                 nome: true
+//               }
+//             }
+//           }
+//         },
+//         agendamentos: {
+//           where: {
+//             status: "REALIZADO"
+//           },
+//           select: {
+//             id_agendamento: true,
+//             dia_realizado: true,
+//             horario_realizado: true,
+//             status: true,
+//             usuario: {
+//               select: {
+//                 nome: true
+//               }
+//             }
+//           }
+//         }
+//       }
+//     });
+
+//     if (!cliente) {
+//       return res.status(404).json({ error: 'Cliente não encontrado' });
+//     }
+
+//     res.status(200).json({
+//       nome_cliente: cliente.nome_cliente,
+//       coletas_realizadas: cliente.coletas,
+//       agendamentos_realizados: cliente.agendamentos
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ error: 'Erro ao buscar coletas realizadas' });
+//   }
+// });
+
+router.get('/coletas-previstas', async (req, res) => {
+  const { nomeCliente, nomeZona, startDate, endDate } = req.query;
+
+  // Validação do período obrigatório
+  if (!startDate || !endDate) {
+    return res.status(400).json({ error: "Informe o período (startDate e endDate)." });
+  }
   const dataInicio = new Date(startDate);
   const dataFim = new Date(endDate);
   const diffEmMs = dataFim - dataInicio;
   const diffEmDias = diffEmMs / (1000 * 60 * 60 * 24);
-  
+
   if (diffEmDias > 31) {
     return res.status(400).json({ error: "O intervalo entre as datas não pode ultrapassar 31 dias." });
   }
 
   try {
+    // 1. Buscar clientes conforme os filtros
+    let clientesWhere = {};
+    let zonas = [];
+
+    if (nomeCliente) {
+      clientesWhere.nome_cliente = { contains: nomeCliente, mode: "insensitive" };
+    }
+    if (nomeZona) {
+      // Busca a zona pelo nome
+      const zona = await prisma.zona.findUnique({ where: { nome_da_zona: nomeZona } });
+      if (!zona) {
+        return res.status(404).json({ error: "Zona não encontrada" });
+      }
+      zonas = [zona];
+      clientesWhere.endereco = { zona: { id_zona: zona.id } };
+    } else {
+      // Se não filtrar por zona, busca todas as zonas
+      zonas = await prisma.zona.findMany();
+    }
+
+    // Busca todos os clientes conforme os filtros
+    const clientes = await prisma.cliente.findMany({
+      where: clientesWhere,
+      select: {
+        id_cliente: true,
+        nome_cliente: true,
+        endereco: {
+          select: {
+            zona: { select: { id_zona: true, nome_da_zona: true, dias: true } }
+          }
+        }
+      }
+    });
+
+    // 2. Buscar agendamentos previstos (status PENDENTE) para esses clientes
+    let filtroAgendamento = {
+      status: "PENDENTE",
+      dia_agendado: {
+        gte: dataInicio,
+        lte: dataFim
+      }
+    };
+    if (clientes.length > 0) {
+      filtroAgendamento.id_cliente = { in: clientes.map(c => c.id_cliente) };
+    } else if (nomeCliente || nomeZona) {
+      // Se filtrou por cliente ou zona e não achou clientes, retorna vazio
+      return res.status(200).json([]);
+    }
+
     const agendamentos = await prisma.agendamento.findMany({
-      where: {
-        status: "PENDENTE",
-        dia_agendado: {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
-        },
+      where: filtroAgendamento,
+      select: {
+        id_agendamento: true,
+        dia_agendado: true,
         cliente: {
-          endereco: {
-            zona: {
-              id_zona: Number(idZona)
+          select: {
+            id_cliente: true,
+            nome_cliente: true,
+            endereco: {
+              select: {
+                zona: { select: { id_zona: true, nome_da_zona: true, dias: true } }
+              }
             }
           }
         }
-      },
-      include: {
-        id_agendamento: true,
-        dia_agendado: true,
-        turno_agendado: true,
-        status: true,
-        usuario: {
-          select: {
-            nome: true,
-          },
-        },
-        cliente: {
-          include: {
-            endereco: true,
-          },
-        },
-        zona: {
-          select: {
-            nome_da_zona: true,
-          },
-        },
-      },
+      }
     });
 
-    const zona = await prisma.zona.findUnique({
-      where: { id: Number(idZona) }
+    // 3. Montar o resultado por cliente
+    const resultado = clientes.map(cliente => {
+      const zona = cliente.endereco?.zona;
+      // Extrai os dias da semana da zona
+      let diasSemana = [];
+      if (zona && zona.dias) {
+        if (typeof zona.dias === "string") {
+          diasSemana = zona.dias.split(",").map(d => d.trim());
+        } else if (zona.dias && zona.dias.dias) {
+          diasSemana = zona.dias.dias.split(",").map(d => d.trim());
+        }
+      }
+      // Gera as datas previstas de coleta para o cliente
+      let datasColetasPrevistas = [];
+      if (diasSemana.length > 0) {
+        datasColetasPrevistas = gerarDatasPrevistas(diasSemana, dataInicio, dataFim)
+          .map(dt => dt.toISOString().split('T')[0]);
+      }
+      // Dias de agendamentos previstos para o cliente
+      const agendamentosCliente = agendamentos.filter(a => a.cliente.id_cliente === cliente.id_cliente);
+      const datasAgendamentosPrevistos = agendamentosCliente.map(a => a.dia_agendado.toISOString().split('T')[0]);
+
+      // Junta e remove duplicados das datas previstas (coleta + agendamento)
+      const datasPrevistasUnicas = Array.from(new Set([...datasColetasPrevistas, ...datasAgendamentosPrevistos]));
+
+      return {
+        nome_cliente: cliente.nome_cliente,
+        zona: zona?.nome_da_zona || "Não definida",
+        total_previstos: datasPrevistasUnicas.length,
+        datas_previstas: datasPrevistasUnicas.sort(), // ordena as datas
+      };
     });
 
-    if (!zona) {
-      return res.status(404).json({ error: "Zona não encontrada" });
-    }
-
-    const diasJson = zona.dias;
-    let diasSemana = [];
-    if (typeof diasJson === "string") {
-      diasSemana = diasJson.split(",").map(d => d.trim());
-    } else if (diasJson.dias) {
-      diasSemana = diasJson.dias.split(",").map(d => d.trim());
-    }
-
-    const datasPrevistas = gerarDatasPrevistas(diasSemana, dataInicio, dataFim);
-
-    const datasColetasPrevistas = datasPrevistas.map(dt => dt.toISOString().split('T')[0])
-
-    res.status(200).json({
-      datas_coletas_previstas: datasColetasPrevistas,
-      agendamentos_previstos: agendamentos
-    });
+    res.status(200).json(resultado);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Erro ao buscar coletas e agendamentos previstos' });
   }
 });
+
+//Rota 4: Agendamentos e Coletas Previstos para determinado período
+// router.get('/coletas-previstas', async (req, res) => {
+//   const { startDate, endDate, idZona} = req.query;
+
+//   const dataInicio = new Date(startDate);
+//   const dataFim = new Date(endDate);
+//   const diffEmMs = dataFim - dataInicio;
+//   const diffEmDias = diffEmMs / (1000 * 60 * 60 * 24);
+  
+//   if (diffEmDias > 31) {
+//     return res.status(400).json({ error: "O intervalo entre as datas não pode ultrapassar 31 dias." });
+//   }
+
+//   try {
+//     const agendamentos = await prisma.agendamento.findMany({
+//       where: {
+//         status: "PENDENTE",
+//         dia_agendado: {
+//           gte: new Date(startDate),
+//           lte: new Date(endDate),
+//         },
+//         cliente: {
+//           endereco: {
+//             zona: {
+//               id_zona: Number(idZona)
+//             }
+//           }
+//         }
+//       },
+//       include: {
+//         id_agendamento: true,
+//         dia_agendado: true,
+//         turno_agendado: true,
+//         status: true,
+//         usuario: {
+//           select: {
+//             nome: true,
+//           },
+//         },
+//         cliente: {
+//           include: {
+//             endereco: true,
+//           },
+//         },
+//         zona: {
+//           select: {
+//             nome_da_zona: true,
+//           },
+//         },
+//       },
+//     });
+
+//     const zona = await prisma.zona.findUnique({
+//       where: { id: Number(idZona) }
+//     });
+
+//     if (!zona) {
+//       return res.status(404).json({ error: "Zona não encontrada" });
+//     }
+
+//     const diasJson = zona.dias;
+//     let diasSemana = [];
+//     if (typeof diasJson === "string") {
+//       diasSemana = diasJson.split(",").map(d => d.trim());
+//     } else if (diasJson.dias) {
+//       diasSemana = diasJson.dias.split(",").map(d => d.trim());
+//     }
+
+//     const datasPrevistas = gerarDatasPrevistas(diasSemana, dataInicio, dataFim);
+
+//     const datasColetasPrevistas = datasPrevistas.map(dt => dt.toISOString().split('T')[0])
+
+//     res.status(200).json({
+//       datas_coletas_previstas: datasColetasPrevistas,
+//       agendamentos_previstos: agendamentos
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ error: 'Erro ao buscar coletas e agendamentos previstos' });
+//   }
+// });
 
 function gerarDatasPrevistas(diasSemana, dataInicio, dataFim) {
   const mapaDias = {
