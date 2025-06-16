@@ -154,6 +154,7 @@ router.get("/consulta-cliente-telefone/:telefone", async (req, res) => {
 
     res.status(200).json({
       nome_cliente: cliente.nome_cliente,
+      id_cliente: cliente.id_cliente,
       tem_agendamento: temAgendamento,
       agendamentos: temAgendamento ? cliente.agendamentos : [],
     });
