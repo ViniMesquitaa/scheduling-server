@@ -37,11 +37,13 @@ router.post("/coleta-qrcode", async (req, res) => {
       return res.status(404).json({ error: "Cliente não encontrado" });
     }
 
+    const dataHoraRealizado = new Date(`${diaRealizado}T${horarioRealizado}:00.000Z`);
+
     const coleta = await prisma.coleta.create({
       data: {
         id_cliente: cliente.id_cliente,
         dia_realizado: new Date(diaRealizado),
-        horario_realizado: horarioRealizado,
+        horario_realizado: dataHoraRealizado,
         id_usuario,
       },
     });
