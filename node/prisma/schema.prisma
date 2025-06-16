@@ -83,12 +83,13 @@ model Usuario {
 }
 
 model Admin {
-  id_admin    Int      @id @default(autoincrement())
-  nome        String
-  email       String   @unique
-  senha       String
-  criado_em   DateTime @default(now())
-  atualizado_em DateTime @updatedAt
+  id_admin       Int      @id @default(autoincrement())
+  nome           String
+  email          String   @unique
+  senha          String
+  precisa_redefinir Boolean @default(true)
+  criado_em      DateTime @default(now())
+  atualizado_em  DateTime @updatedAt
 
   @@map("admin")
 }
