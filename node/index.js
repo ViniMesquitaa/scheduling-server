@@ -14,7 +14,7 @@ const admin = require('./routes/admin');
 
 const corsOptions = { 
     credentials : true , 
-    origin : [ 'http://localhost:5173' , 'http://localhost:8000' ]
+    origin : [ 'http://localhost:5173' , 'https://scheduling-server-production.up.railway.app/' ]
  }; 
 
 app. use ( cors (corsOptions)); 
