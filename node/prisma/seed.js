@@ -9,6 +9,7 @@ async function main() {
   const email = "admin@exemplo.com";
   const senhaPlana = "123456";
   const senhaHash = await bcrypt.hash(senhaPlana, 10);
+  const precisaRedefinir = true;
 
   const adminExistente = await prisma.admin.findUnique({
     where: { email }
@@ -20,6 +21,7 @@ async function main() {
         nome,
         email,
         senha: senhaHash,
+        precisa_redefinir: precisaRedefinir 
       }
     });
     console.log("Usuário admin criado com sucesso!");
