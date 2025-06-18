@@ -1,36 +1,46 @@
 function montarFiltros({ nomeCliente, startDate, endDate, zonaId }) {
-  let filtroColeta = {
-    dia_realizado: { not: null },
-    horario_realizado: { not: null },
-  };
+  let filtroColeta = {};
   let filtroAgendamento = { status: "REALIZADO" };
 
   if (startDate && endDate) {
+    const start = new Date(`${startDate}T03:00:00Z`);
+    const end = new Date(`${endDate}T02:59:59Z`);
+
     filtroColeta.dia_realizado = {
-      gte: new Date(startDate),
-      lte: new Date(endDate),
+      gte: start,
+      lte: end,
     };
     filtroAgendamento.dia_realizado = {
-      gte: new Date(startDate),
-      lte: new Date(endDate),
+      gte: start,
+      lte: end,
     };
   }
 
   if (zonaId) {
     filtroColeta.cliente = {
       ...(filtroColeta.cliente || {}),
-      endereco: { zona: { id_zona: zonaId } },
+      endereco: { zona: { id: zonaId } }, 
     };
-    filtroAgendamento.id_zona = zonaId;
+    filtroAgendamento.cliente = {
+      ...(filtroAgendamento.cliente || {}),
+      endereco: { zona: { id: zonaId } },
+    };
   }
 
   if (nomeCliente) {
     filtroColeta.cliente = {
-      ...(filtroColeta.cliente || {}),
-      nome_cliente: { contains: nomeCliente, mode: "insensitive" },
+      is: {
+        nome_cliente: {
+          contains: nomeCliente,
+        },
+      },
     };
     filtroAgendamento.cliente = {
-      nome_cliente: { contains: nomeCliente, mode: "insensitive" },
+      is: {
+        nome_cliente: {
+          contains: nomeCliente,
+        },
+      },
     };
   }
 
@@ -60,7 +70,8 @@ function agruparPorCliente(coletas, agendamentos) {
     if (!clientesMap[id]) {
       clientesMap[id] = {
         nome_cliente: agendamento.cliente.nome_cliente,
-        zona: agendamento.cliente.endereco?.zona?.nome_da_zona || "Não definida",
+        zona:
+          agendamento.cliente.endereco?.zona?.nome_da_zona || "Não definida",
         realizadas: 0,
         dias_realizados: new Set(),
       };
