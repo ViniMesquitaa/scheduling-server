@@ -108,7 +108,6 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// Deletar usuário por ID
 router.delete('/:id', async (req, res) => {
   const id = parseInt(req.params.id);
 

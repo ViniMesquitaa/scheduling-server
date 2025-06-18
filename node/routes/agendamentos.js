@@ -77,7 +77,31 @@ router.post("/telefone", async (req, res) => {
     return res.status(400).json({ error: "Campos obrigatórios não preenchidos" });
   }
 
+  let dataConvertida;
+
   try {
+    // Verifica se a data tem "/" e tenta converter de "dd/mm/yyyy" para "yyyy-mm-dd"
+    if (dia_agendado.includes("/")) {
+      const partes = dia_agendado.split("/");
+
+      if (partes.length !== 3) {
+        return res.status(400).json({ error: "Formato de data inválido" });
+      }
+
+      // tenta detectar se é dd/mm/yyyy ou mm/dd/yyyy (assumiremos dd/mm/yyyy como padrão BR)
+      const [dia, mes, ano] = partes;
+
+      // monta string no formato ISO para criar um Date
+      dataConvertida = new Date(`${ano}-${mes}-${dia}T00:00:00`);
+    } else {
+      // se estiver no formato ISO direto
+      dataConvertida = new Date(dia_agendado.includes("T") ? dia_agendado : `${dia_agendado}T00:00:00`);
+    }
+
+    if (isNaN(dataConvertida.getTime())) {
+      return res.status(400).json({ error: "Data inválida" });
+    }
+
     const cliente = await prisma.cliente.findUnique({
       where: { telefone_cliente },
       include: {
@@ -99,11 +123,11 @@ router.post("/telefone", async (req, res) => {
 
     const agendamento = await prisma.agendamento.create({
       data: {
-        dia_agendado: new Date(dia_agendado),
+        dia_agendado: dataConvertida,
         turno_agendado,
-        observacoes,
+        observacoes: observacoes || null,
         id_cliente: cliente.id_cliente,
-        id_usuario,
+        id_usuario: Number(id_usuario),
         id_zona: cliente.endereco.id_zona,
       },
       include: {
@@ -124,6 +148,7 @@ router.post("/telefone", async (req, res) => {
     res.status(500).json({ erro: "Erro interno ao criar o agendamento." });
   }
 });
+
 
 router.get("/", async (req, res) => {
   try {
@@ -205,6 +230,30 @@ router.get("/pendentes", async (req, res) => {
 });
 
 // Atualizar agendamento
+function parseData(dataString) {
+  if (!dataString) return undefined;
+
+  // Se tiver "/", assume formato dd/mm/yyyy ou dd/mm/yyyy hh:mm
+  if (dataString.includes("/")) {
+    const [data, hora] = dataString.split(" ");
+    const [dia, mes, ano] = data.split("/");
+
+    if (!dia || !mes || !ano) return undefined;
+
+    // Monta no formato ISO
+    const isoString = hora
+      ? `${ano}-${mes}-${dia}T${hora}`
+      : `${ano}-${mes}-${dia}T00:00:00`;
+
+    const dataFinal = new Date(isoString);
+    return isNaN(dataFinal.getTime()) ? undefined : dataFinal;
+  }
+
+  // Se estiver no formato ISO válido
+  const d = new Date(dataString);
+  return isNaN(d.getTime()) ? undefined : d;
+}
+
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
   const {
@@ -219,13 +268,11 @@ router.put("/:id", async (req, res) => {
     const agendamento = await prisma.agendamento.update({
       where: { id_agendamento: parseInt(id) },
       data: {
-        dia_agendado: dia_agendado ? new Date(dia_agendado) : undefined,
+        dia_agendado: parseData(dia_agendado),
         turno_agendado,
         observacoes,
-        dia_realizado: dia_realizado ? new Date(dia_realizado) : undefined,
-        horario_realizado: horario_realizado
-          ? new Date(horario_realizado)
-          : undefined,
+        dia_realizado: parseData(dia_realizado),
+        horario_realizado: parseData(horario_realizado),
       },
       include: {
         cliente: {
@@ -246,7 +293,7 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-//Atualização(baixa) no agendamento(Coletor)
+
 router.put("/registro", async (req, res) => {
   const { qr_code, dia_realizado, hora_realizado } = req.body;
 
