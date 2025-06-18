@@ -3,7 +3,31 @@ const router = express.Router();
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-// Criar agendamento
+function parseData(dataString) {
+  if (!dataString) return undefined;
+
+  if (dataString.includes("/")) {
+    const [data, hora] = dataString.split(" ");
+    const [dia, mes, ano] = data.split("/");
+
+    if (!dia || !mes || !ano) return undefined;
+
+    // Monta no formato ISO
+    const isoString = hora
+      ? `${ano}-${mes}-${dia}`
+      : `${ano}-${mes}-${dia}`;
+
+    const dataFinal = new Date(isoString);
+    return isNaN(dataFinal.getTime()) ? undefined : dataFinal;
+  }
+
+
+  const d = new Date(dataString);
+  console.log("Data recebida:", dataString, "-> Data convertida:", d);
+  return isNaN(d.getTime()) ? undefined : d;
+}
+
+
 router.post("/", async (req, res) => {
   const { dia_agendado, turno_agendado, observacoes, id_cliente, id_usuario } =
     req.body;
@@ -229,30 +253,6 @@ router.get("/pendentes", async (req, res) => {
   }
 });
 
-// Atualizar agendamento
-function parseData(dataString) {
-  if (!dataString) return undefined;
-
-  // Se tiver "/", assume formato dd/mm/yyyy ou dd/mm/yyyy hh:mm
-  if (dataString.includes("/")) {
-    const [data, hora] = dataString.split(" ");
-    const [dia, mes, ano] = data.split("/");
-
-    if (!dia || !mes || !ano) return undefined;
-
-    // Monta no formato ISO
-    const isoString = hora
-      ? `${ano}-${mes}-${dia}T${hora}`
-      : `${ano}-${mes}-${dia}T00:00:00`;
-
-    const dataFinal = new Date(isoString);
-    return isNaN(dataFinal.getTime()) ? undefined : dataFinal;
-  }
-
-  // Se estiver no formato ISO válido
-  const d = new Date(dataString);
-  return isNaN(d.getTime()) ? undefined : d;
-}
 
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
@@ -342,13 +342,15 @@ router.put("/registro", async (req, res) => {
 //Atualização de agendamento através do telefone do cliente(Chatbot)
 router.put("/telefone/:telefone_cliente", async (req, res) => {
   const { telefone_cliente } = req.params;
+  data = req.body;
+  data.dia_agendado = parseData(data.dia_agendado);
   const {
     dia_agendado,
     turno_agendado,
     observacoes,
     dia_realizado,
     horario_realizado,
-  } = req.body;
+  } = data;
 
   try {
     const cliente = await prisma.cliente.findUnique({
@@ -387,8 +389,6 @@ router.put("/telefone/:telefone_cliente", async (req, res) => {
         dia_agendado: dia_agendado ? new Date(dia_agendado) : undefined,
         turno_agendado,
         observacoes,
-        // dia_realizado: dia_realizado ? new Date(dia_realizado) : undefined, RETIRAR?
-        // horario_realizado: horario_realizado ? new Date(horario_realizado) : undefined, RETIRAR?
         id_zona: cliente.endereco.zona.id,
       },
       include: {
@@ -444,7 +444,7 @@ router.delete("/telefone/:telefone_cliente", async (req, res) => {
         .json({ error: "Cliente não encontrado com esse telefone." });
     }
 
-    const agendamento = cliente.agendamentos[1]; 
+    const agendamento = cliente.agendamentos[0]; 
     if (!agendamento) {
       return res.status(404).json({ error: "Agendamento não encontrado." });
     }
@@ -457,8 +457,11 @@ router.delete("/telefone/:telefone_cliente", async (req, res) => {
       return res.status(404).json({ error: "Agendamento Existente não encontrado." });
     }
 
-    await prisma.agendamento.delete({
+    const agendamentoAtualizado = await prisma.agendamento.update({
       where: { id_agendamento: agendamentoExistente.id_agendamento },
+      data: {
+        status: "CANCELADO", 
+      }
     });
 
     res.status(200).json({ message: "Agendamento deletado com sucesso" });

@@ -30,9 +30,6 @@ router.post('/login', async (req, res) => {
   }
 });
 
-
-
-// Criar usuário
 const SALT_ROUNDS = 10;
 
 router.post('/register', async (req, res) => {
@@ -60,8 +57,6 @@ router.post('/register', async (req, res) => {
   }
 });
 
-
-// Listar todos os usuários
 router.get('/', async (req, res) => {
   try {
     const usuarios = await prisma.usuario.findMany();
@@ -71,7 +66,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Buscar usuário por ID
 router.get('/:id', async (req, res) => {
   const id = parseInt(req.params.id);
   try {
@@ -89,7 +83,6 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Atualizar usuário por ID
 router.put('/:id', async (req, res) => {
   const id = parseInt(req.params.id);
   const { nome, email, senha, tipo_usuario } = req.body;
