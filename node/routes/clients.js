@@ -131,6 +131,7 @@ router.get("/:telefone", async (req, res) => {
 
 router.get("/consulta-cliente-telefone/:telefone", async (req, res) => {
   const { telefone } = req.params;
+
   try {
     const cliente = await prisma.cliente.findUnique({
       where: {
@@ -138,6 +139,9 @@ router.get("/consulta-cliente-telefone/:telefone", async (req, res) => {
       },
       include: {
         agendamentos: {
+          where: {
+            status: "PENDENTE",
+          },
           select: {
             dia_agendado: true,
             turno_agendado: true,
@@ -156,13 +160,14 @@ router.get("/consulta-cliente-telefone/:telefone", async (req, res) => {
       nome_cliente: cliente.nome_cliente,
       id_cliente: cliente.id_cliente,
       tem_agendamento: temAgendamento,
-      agendamentos: temAgendamento ? cliente.agendamentos : [],
+      agendamentos: cliente.agendamentos,
     });
   } catch (error) {
     console.error("Erro ao buscar cliente:", error);
     res.status(500).json({ error: "Erro ao buscar o cliente" });
   }
 });
+
 
 router.put("/:telefone", async (req, res) => {
   const { telefone } = req.params;
