@@ -6,20 +6,15 @@ const prisma = new PrismaClient();
 
 // Rota 1: Agendamentos Cancelados
 router.get("/agendamentos-cancelados", async (req, res) => {
-  const { startDate, endDate, nomeCliente } = req.query;
+  const { nomeCliente } = req.query;
 
   try {
     const agendamentos = await prisma.agendamento.findMany({
       where: {
         status: "CANCELADO",
-        dia_agendado: {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
-        },
         cliente: {
           nome_cliente: {
             contains: nomeCliente || "",
-            mode: "insensitive",
           },
         },
       },
@@ -40,7 +35,9 @@ router.get("/agendamentos-cancelados", async (req, res) => {
       turno: a.turno_agendado,
       status: a.status,
       endereco: `${a.cliente.endereco.nome_rua}, ${a.cliente.endereco.numero}, ${a.cliente.endereco.bairro}`,
-      zona: a.zona?.nome_da_zona || "Não atribuída",
+      zona: a.zona
+        ? { nome_da_zona: a.zona.nome_da_zona, cor: a.zona.cor }
+        : { nome_da_zona: "Não atribuída", cor: "default" },
       observacoes: a.observacoes || "",
     }));
 
@@ -51,9 +48,14 @@ router.get("/agendamentos-cancelados", async (req, res) => {
   }
 });
 
+
 // Rota 2: Coletas por Cliente
 router.get("/coletas-por-cliente", async (req, res) => {
   const { startDate, endDate } = req.query;
+
+  if (!startDate || !endDate || isNaN(new Date(startDate)) || isNaN(new Date(endDate))) {
+    return res.status(400).json({ error: "Datas inválidas ou ausentes" });
+  }
 
   try {
     const dados = await prisma.agendamento.groupBy({
@@ -70,18 +72,21 @@ router.get("/coletas-por-cliente", async (req, res) => {
       },
     });
 
-    const resultado = await Promise.all(
-      dados.map(async (item) => {
-        const cliente = await prisma.cliente.findUnique({
-          where: { id_cliente: item.id_cliente },
-        });
+    const clienteIds = dados.map((item) => item.id_cliente);
 
-        return {
-          nome_cliente: cliente?.nome_cliente || "Cliente não encontrado",
-          quantidade_de_coletas: item._count._all,
-        };
-      })
+    const clientes = await prisma.cliente.findMany({
+      where: { id_cliente: { in: clienteIds } },
+      select: { id_cliente: true, nome_cliente: true },
+    });
+
+    const clienteMap = new Map(
+      clientes.map((cli) => [cli.id_cliente, cli.nome_cliente])
     );
+
+    const resultado = dados.map((item) => ({
+      nome_cliente: clienteMap.get(item.id_cliente) || "Cliente não encontrado",
+      quantidade_de_coletas: item._count._all,
+    }));
 
     res.json(resultado);
   } catch (err) {
@@ -94,34 +99,30 @@ router.get("/coletas-por-cliente", async (req, res) => {
 router.get('/coletas-realizadas', async (req, res) => {
   const { nomeCliente, nomeZona, startDate, endDate } = req.query;
 
-  if (!nomeCliente && !nomeZona && !(startDate && endDate)) {
-    return res.status(400).json({
-      error: "Informe pelo menos um filtro: nomeCliente, nomeZona ou período (startDate e endDate)."
-    });
-  }
-
   try {
-    // Monta filtros usando a função montarFiltros
     let zonaId = null;
+
     if (nomeZona) {
       const zona = await prisma.zona.findUnique({
         where: { nome_da_zona: nomeZona }
       });
+
       if (!zona) {
         return res.status(404).json({ error: 'Zona não encontrada' });
       }
+
       zonaId = zona.id;
     }
 
+    // Filtros são todos opcionais
     const { filtroColeta, filtroAgendamento } = montarFiltros({
-      nomeCliente,
-      startDate,
-      endDate,
-      zonaId,
+      nomeCliente: nomeCliente || undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      zonaId: zonaId || undefined,
       status: "REALIZADO"
     });
 
-    // Busca coletas e agendamentos conforme os filtros
     const coletas = await prisma.coleta.findMany({
       where: filtroColeta,
       select: {
@@ -133,7 +134,7 @@ router.get('/coletas-realizadas', async (req, res) => {
             nome_cliente: true,
             endereco: {
               select: {
-                zona: { select: { nome_da_zona: true } }
+                zona: { select: { nome_da_zona: true, cor: true } }
               }
             }
           }
@@ -152,7 +153,7 @@ router.get('/coletas-realizadas', async (req, res) => {
             nome_cliente: true,
             endereco: {
               select: {
-                zona: { select: { nome_da_zona: true } }
+                zona: { select: { nome_da_zona: true, cor: true } }
               }
             }
           }
@@ -160,9 +161,7 @@ router.get('/coletas-realizadas', async (req, res) => {
       }
     });
 
-    // Usa a função utilitária para agrupar por cliente e montar o resultado final
     const resultado = agruparPorCliente(coletas, agendamentos);
-
     res.status(200).json(resultado);
   } catch (error) {
     console.error(error);
