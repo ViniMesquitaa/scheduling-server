@@ -3,7 +3,6 @@ const router = express.Router();
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-// Criar nova coleta
 router.post("/", async (req, res) => {
   const { clienteId, diaRealizado, horarioRealizado, qtdColetas } = req.body;
 
