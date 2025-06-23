@@ -98,7 +98,7 @@ router.get("/", async (req, res) => {
         },
       },
       orderBy: {
-        nome_cliente: "asc",
+        id_cliente: "asc",
       },
     });
     res.status(200).json(clientes);
