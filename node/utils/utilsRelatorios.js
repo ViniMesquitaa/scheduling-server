@@ -75,46 +75,38 @@ function montarFiltros({ nomeCliente, startDate, endDate, zonaId, status }) {
 
 function agruparPorCliente(coletas, agendamentos) {
   const clientesMap = {};
-  coletas.forEach((coleta) => {
-    const id = coleta.cliente.id_cliente;
+
+  const adicionarCliente = (item) => {
+    const id = item.cliente.id_cliente;
     if (!clientesMap[id]) {
       clientesMap[id] = {
-        nome_cliente: coleta.cliente.nome_cliente,
-        zona: coleta.cliente.endereco?.zona?.nome_da_zona || "Não definida",
+        nome_cliente: item.cliente.nome_cliente,
+        zona: {
+          nome_da_zona: item.cliente.endereco?.zona?.nome_da_zona || "Não definida",
+          cor: item.cliente.endereco?.zona?.cor || "cinza",  
+        },
         realizadas: 0,
         dias_realizados: new Set(),
       };
     }
     clientesMap[id].realizadas += 1;
-    if (coleta.dia_realizado)
+    if (item.dia_realizado)
       clientesMap[id].dias_realizados.add(
-        coleta.dia_realizado.toISOString().split("T")[0]
+        item.dia_realizado.toISOString().split("T")[0]
       );
-  });
-  agendamentos.forEach((agendamento) => {
-    const id = agendamento.cliente.id_cliente;
-    if (!clientesMap[id]) {
-      clientesMap[id] = {
-        nome_cliente: agendamento.cliente.nome_cliente,
-        zona:
-          agendamento.cliente.endereco?.zona?.nome_da_zona || "Não definida",
-        realizadas: 0,
-        dias_realizados: new Set(),
-      };
-    }
-    clientesMap[id].realizadas += 1;
-    if (agendamento.dia_realizado)
-      clientesMap[id].dias_realizados.add(
-        agendamento.dia_realizado.toISOString().split("T")[0]
-      );
-  });
+  };
+
+  coletas.forEach(adicionarCliente);
+  agendamentos.forEach(adicionarCliente);
+
   return Object.values(clientesMap).map((cliente) => ({
     nome_cliente: cliente.nome_cliente,
-    zona: cliente.zona,
+    zona: cliente.zona, 
     realizadas: cliente.realizadas,
     dias_realizados: Array.from(cliente.dias_realizados),
   }));
 }
+
 
 function gerarDatasPrevistas(diasSemana, dataInicio, dataFim) {
   const mapaDias = {
