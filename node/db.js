@@ -1,20 +1,20 @@
 require('dotenv').config();
-const mysql = require('mysql2/promise');
+const { Pool } = require('pg');
 
-const pool = mysql.createPool({
+const pool = new Pool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  waitForConnections: true,
-  connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT) || 10,
-  queueLimit: 0
+  port: process.env.DB_PORT || 5432,
+  max: parseInt(process.env.DB_CONNECTION_LIMIT) || 10,
 });
 
 (async () => {
   try {
-    await pool.getConnection();
-    console.log("Banco de dados conectado com sucesso");
+    const client = await pool.connect();
+    console.log("Banco de dados PostgreSQL conectado com sucesso");
+    client.release();
   } catch (error) {
     console.error("Erro ao conectar no banco de dados:", error);
   }

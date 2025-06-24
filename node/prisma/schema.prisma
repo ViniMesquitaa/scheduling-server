@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -18,6 +18,7 @@ model Agendamento {
   id_usuario        Int
   id_zona           Int?
   status            StatusAgendamento @default(PENDENTE)
+
   cliente           Cliente           @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade)
   usuario           Usuario           @relation(fields: [id_usuario], references: [id_usuario])
   zona              Zona?             @relation(fields: [id_zona], references: [id])
@@ -35,6 +36,7 @@ model Cliente {
   qr_code          String?       @unique
   id_endereco      Int
   tipo             TipoCliente   @default(PEQUENO_GERADOR)
+
   agendamentos     Agendamento[]
   endereco         Endereco      @relation(fields: [id_endereco], references: [id_endereco], onDelete: Cascade)
   coletas          Coleta[]
@@ -49,6 +51,7 @@ model Coleta {
   horario_realizado DateTime
   id_cliente        Int
   id_usuario        Int
+
   cliente           Cliente  @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade)
   usuario           Usuario  @relation(fields: [id_usuario], references: [id_usuario])
 
@@ -63,6 +66,7 @@ model Endereco {
   numero      String
   bairro      String
   id_zona     Int
+
   clientes    Cliente[]
   zona        Zona      @relation(fields: [id_zona], references: [id])
 
@@ -76,6 +80,7 @@ model Usuario {
   email        String        @unique
   senha        String
   tipo_usuario String
+
   agendamentos Agendamento[]
   coletas      Coleta[]
 
@@ -83,17 +88,16 @@ model Usuario {
 }
 
 model Admin {
-  id_admin       Int      @id @default(autoincrement())
-  nome           String
-  email          String   @unique
-  senha          String
-  precisa_redefinir Boolean @default(true)
-  criado_em      DateTime @default(now())
-  atualizado_em  DateTime @updatedAt
+  id_admin           Int      @id @default(autoincrement())
+  nome               String
+  email              String   @unique
+  senha              String
+  precisa_redefinir  Boolean  @default(true)
+  criado_em          DateTime @default(now())
+  atualizado_em      DateTime @updatedAt
 
   @@map("admin")
 }
-
 
 model Zona {
   id                    Int           @id @default(autoincrement())
@@ -101,6 +105,7 @@ model Zona {
   qtd_coletas_esperadas Int
   dias                  Json
   cor                   String
+
   agendamentos          Agendamento[]
   enderecos             Endereco[]
 
