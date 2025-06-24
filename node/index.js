@@ -1,7 +1,7 @@
 require('dotenv').config()
 const express = require('express');
 const app = express();
-const cors = require ( 'cors' ); // Importar o pacote cors 
+const cors = require ( 'cors' ); 
 const coletasRoutes = require('./routes/coletas');
 const clients = require('./routes/clients')
 const usuarios = require('./routes/usuarios')
@@ -27,6 +27,6 @@ app.use('/zonas', zona)
 app.use("/relatorios", relatoriosRouter);
 app.use('/admin', admin);
 
-app.listen(8000, () => {
-  console.log("API rodando em http://localhost:8000");
+app.get('/', (req, res) => {
+  res.send('API está rodando com sucesso.');
 });
