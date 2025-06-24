@@ -23,9 +23,9 @@ model Agendamento {
   usuario           Usuario           @relation(fields: [id_usuario], references: [id_usuario])
   zona              Zona?             @relation(fields: [id_zona], references: [id])
 
-  @@index([id_cliente], map: "agendamentos_id_cliente_fkey")
-  @@index([id_usuario], map: "agendamentos_id_usuario_fkey")
-  @@index([id_zona], map: "agendamentos_id_zona_fkey")
+  @@index([id_cliente], map: "idx_agendamentos_id_cliente")
+  @@index([id_usuario], map: "idx_agendamentos_id_usuario")
+  @@index([id_zona], map: "idx_agendamentos_id_zona")
   @@map("agendamentos")
 }
 
@@ -41,7 +41,7 @@ model Cliente {
   endereco         Endereco      @relation(fields: [id_endereco], references: [id_endereco], onDelete: Cascade)
   coletas          Coleta[]
 
-  @@index([id_endereco], map: "clientes_id_endereco_fkey")
+  @@index([id_endereco], map: "idx_clientes_id_endereco")
   @@map("clientes")
 }
 
@@ -55,8 +55,8 @@ model Coleta {
   cliente           Cliente  @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade)
   usuario           Usuario  @relation(fields: [id_usuario], references: [id_usuario])
 
-  @@index([id_cliente], map: "coletas_id_cliente_fkey")
-  @@index([id_usuario], map: "coletas_id_usuario_fkey")
+  @@index([id_cliente], map: "idx_coletas_id_cliente")
+  @@index([id_usuario], map: "idx_coletas_id_usuario")
   @@map("coletas")
 }
 
@@ -70,7 +70,7 @@ model Endereco {
   clientes    Cliente[]
   zona        Zona      @relation(fields: [id_zona], references: [id])
 
-  @@index([id_zona], map: "enderecos_id_zona_fkey")
+  @@index([id_zona], map: "idx_enderecos_id_zona")
   @@map("enderecos")
 }
 
