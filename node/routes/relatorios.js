@@ -4,7 +4,6 @@ const { montarFiltros, agruparPorCliente, agruparPrevisoesPorCliente } = require
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-// Rota 1: Agendamentos Cancelados
 router.get("/agendamentos-cancelados", async (req, res) => {
   const { nomeCliente } = req.query;
 
@@ -48,8 +47,6 @@ router.get("/agendamentos-cancelados", async (req, res) => {
   }
 });
 
-
-// Rota 2: Coletas por Cliente
 router.get("/coletas-por-cliente", async (req, res) => {
   const { startDate, endDate } = req.query;
 
@@ -95,7 +92,6 @@ router.get("/coletas-por-cliente", async (req, res) => {
   }
 });
 
-// Rota 3: Endpoint para coletas e agendamentos realizados por cliente
 router.get('/coletas-realizadas', async (req, res) => {
   const { nomeCliente, nomeZona, startDate, endDate } = req.query;
 
@@ -114,7 +110,6 @@ router.get('/coletas-realizadas', async (req, res) => {
       zonaId = zona.id;
     }
 
-    // Filtros são todos opcionais
     const { filtroColeta, filtroAgendamento } = montarFiltros({
       nomeCliente: nomeCliente || undefined,
       startDate: startDate || undefined,
@@ -169,11 +164,9 @@ router.get('/coletas-realizadas', async (req, res) => {
   }
 });
 
-//Rota 4: Agendamentos e Coletas Previstos para determinado período
 router.get('/coletas-previstas', async (req, res) => {
   const { nomeCliente, nomeZona, startDate, endDate } = req.query;
 
-  // Validação obrigatória de período
   if (!startDate || !endDate) {
     return res.status(400).json({ error: "Informe o período (startDate e endDate)." });
   }
@@ -187,15 +180,12 @@ router.get('/coletas-previstas', async (req, res) => {
   }
 
   try {
-    // Busca zona se informada
     let zonaId = null;
     if (nomeZona) {
       const zona = await prisma.zona.findUnique({ where: { nome_da_zona: nomeZona } });
       if (!zona) return res.status(404).json({ error: "Zona não encontrada" });
       zonaId = zona.id;
     }
-
-    // Usa a função de montar filtros com status "PENDENTE"
     const { filtroAgendamento } = montarFiltros({
       nomeCliente,
       startDate,
@@ -204,7 +194,6 @@ router.get('/coletas-previstas', async (req, res) => {
       status: "PENDENTE"
     });
 
-    // Busca clientes com suas zonas
     const clientes = await prisma.cliente.findMany({
       where: filtroAgendamento.cliente,
       select: {
@@ -222,7 +211,6 @@ router.get('/coletas-previstas', async (req, res) => {
       return res.status(200).json([]);
     }
 
-    // Busca agendamentos PENDENTES para esses clientes
     const agendamentos = await prisma.agendamento.findMany({
       where: {
         ...filtroAgendamento,

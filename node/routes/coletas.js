@@ -43,7 +43,7 @@ router.post("/coleta-qrcode", async (req, res) => {
         id_cliente: cliente.id_cliente,
         dia_realizado: new Date(diaRealizado),
         horario_realizado: dataHoraRealizado,
-        id_usuario,
+        id_usuario: parseInt(id_usuario, 10),
       },
     });
 
@@ -54,7 +54,6 @@ router.post("/coleta-qrcode", async (req, res) => {
   }
 });
 
-// Listar todas as coletas com dados do cliente
 router.get("/", async (req, res) => {
   try {
     const coletas = await prisma.coleta.findMany({
@@ -68,7 +67,7 @@ router.get("/", async (req, res) => {
       nomeCliente: coleta.cliente.nome,
       diaRealizado: coleta.diaRealizado,
       horarioRealizado: coleta.horarioRealizado,
-      zona: coleta.cliente.bairro, // ou outro campo que represente "zona"
+      zona: coleta.cliente.bairro, 
       qtdColetas: coleta.qtdColetas,
     }));
 
@@ -79,7 +78,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Buscar coleta por ID
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
 
@@ -107,7 +105,6 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// Atualizar coleta por ID
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
   const { diaRealizado, horarioRealizado, qtdColetas } = req.body;
@@ -129,7 +126,6 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// Deletar coleta por ID
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
 

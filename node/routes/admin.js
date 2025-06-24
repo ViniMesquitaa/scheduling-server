@@ -5,6 +5,11 @@ const prisma = new PrismaClient();
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
+
+router.get('/health', (req, res) => {
+  res.status(200).json({ status: 'online' });
+});
+
 router.post("/login", async (req, res) => {
   const { email, senha } = req.body;
 
