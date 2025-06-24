@@ -34,9 +34,4 @@ app.get('/', (req, res) => {
 app.listen({
   host: '0.0.0.0', 
   port: process.env.PORT ? Number(process.env.PORT) : 8000,
-}).then(() => {
-  console.log(`Servidor rodando na porta ${process.env.PORT || 8000}`);
-}).catch((error) => {
-  console.error('Erro ao iniciar o servidor:', error);
-  process.exit(1);
 });
