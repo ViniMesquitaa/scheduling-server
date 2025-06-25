@@ -121,7 +121,7 @@ router.post("/register", async (req, res) => {
     const token = jwt.sign(
       { id: novoAdmin.id_admin, email: novoAdmin.email, role: "admin" },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "24h" }
     );
 
     res.status(201).json({
