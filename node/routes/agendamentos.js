@@ -181,6 +181,7 @@ router.get("/", async (req, res) => {
         cliente: {
           select: {
             nome_cliente: true,
+            telefone_cliente: true,   // <== Inclua aqui o telefone
             endereco: {
               include: {
                 zona: true,
@@ -199,6 +200,7 @@ router.get("/", async (req, res) => {
     const resultadoFormatado = agendamentos.map((a) => ({
       id_agendamento: a.id_agendamento,
       nome_cliente: a.cliente.nome_cliente,
+      telefone_cliente: a.cliente.telefone_cliente,   // <== Retorne o telefone também
       zona: a.cliente.endereco?.zona?.nome_da_zona || "Zona não informada",
       data_agendada: a.dia_agendado,
       turno: a.turno_agendado,
