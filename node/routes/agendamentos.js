@@ -3,29 +3,7 @@ const router = express.Router();
 const { PrismaClient, StatusAgendamento } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-function formatAgendamento(agendamento) {
-  return {
-    id_agendamento: agendamento.id_agendamento,
-    dia_agendado: agendamento.dia_agendado,
-    turno_agendado: agendamento.turno_agendado,
-    dia_realizado: agendamento.dia_realizado || null,
-    horario_realizado: agendamento.horario_realizado || null,
-    observacoes: agendamento.observacoes || null,
-    status: agendamento.status || "PENDENTE",
-    cliente: {
-      nome: agendamento.cliente?.nome_cliente || "Nome não informado",
-      telefone: agendamento.cliente?.telefone_cliente || "Telefone não informado",
-      endereco: agendamento.cliente?.endereco?.nome_rua || "Endereço não informado",
-      zona: agendamento.cliente?.endereco?.zona?.nome_da_zona || "Zona não informada",
-    },
-    usuario: {
-      nome: agendamento.usuario?.nome || "Usuário não informado"
-    },
-    zona: {
-      nome: agendamento.zona?.nome_da_zona || "Zona não informada"
-    }
-  };
-}
+
 
 
 function parseData(dataString) {
@@ -434,6 +412,20 @@ router.delete("/telefone/:telefone_cliente", async (req, res) => {
     console.error(err);
     res.status(500).json({ error: "Erro ao cancelar agendamento" });
   }
+});
+
+const formatAgendamento = (a) => ({
+  id_agendamento: a.id_agendamento,
+  nome_cliente: a.cliente?.nome_cliente || "Cliente não informado",
+  zona:
+    a.cliente?.endereco?.zona?.nome_da_zona ||
+    a.zona?.nome_da_zona ||
+    "Zona não definida",
+  data_agendada: a.dia_agendado,
+  turno: a.turno_agendado,
+  responsavel: a.usuario?.nome || "Responsável não informado",
+  observacoes: a.observacoes || "",
+  status: a.status || "PENDENTE",
 });
 
 module.exports = router;
