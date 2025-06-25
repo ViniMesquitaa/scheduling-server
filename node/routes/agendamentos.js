@@ -178,7 +178,7 @@ router.get("/", async (req, res) => {
   try {
     const agendamentos = await prisma.agendamento.findMany({
       orderBy: {
-        id_agendamento: 'desc',
+        id_agendamento: 'asc',
       },
       include: {
         cliente: {
