@@ -3,6 +3,31 @@ const router = express.Router();
 const { PrismaClient, StatusAgendamento } = require("@prisma/client");
 const prisma = new PrismaClient();
 
+function formatAgendamento(agendamento) {
+  return {
+    id_agendamento: agendamento.id_agendamento,
+    dia_agendado: agendamento.dia_agendado,
+    turno_agendado: agendamento.turno_agendado,
+    dia_realizado: agendamento.dia_realizado || null,
+    horario_realizado: agendamento.horario_realizado || null,
+    observacoes: agendamento.observacoes || null,
+    status: agendamento.status || "PENDENTE",
+    cliente: {
+      nome: agendamento.cliente?.nome_cliente || "Nome não informado",
+      telefone: agendamento.cliente?.telefone_cliente || "Telefone não informado",
+      endereco: agendamento.cliente?.endereco?.nome_rua || "Endereço não informado",
+      zona: agendamento.cliente?.endereco?.zona?.nome_da_zona || "Zona não informada",
+    },
+    usuario: {
+      nome: agendamento.usuario?.nome || "Usuário não informado"
+    },
+    zona: {
+      nome: agendamento.zona?.nome_da_zona || "Zona não informada"
+    }
+  };
+}
+
+
 function parseData(dataString) {
   if (!dataString) return undefined;
 
