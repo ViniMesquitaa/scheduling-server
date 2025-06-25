@@ -6,8 +6,8 @@ const prisma = new PrismaClient();
 
 async function main() {
   const nome = faker.person.fullName();
-  const email = "admin@exemplo.com";
-  const senhaPlana = "123456";
+  const email = "adminaccess25@exemplo.com";
+  const senhaPlana = "Xy3$9!qRw#Zt7pVm";
   const senhaHash = await bcrypt.hash(senhaPlana, 10);
   const precisaRedefinir = true;
 
