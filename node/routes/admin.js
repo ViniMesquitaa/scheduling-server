@@ -206,7 +206,7 @@ router.get("/me", async (req, res) => {
 });
 
 router.put("/:id", async (req, res) => {
-  const { nome, email } = req.body;
+  const { nome, email, senha } = req.body;
   const id_admin = parseInt(req.params.id);
 
   const authHeader = req.headers.authorization;
@@ -231,9 +231,16 @@ router.put("/:id", async (req, res) => {
       return res.status(404).json({ error: "Administrador não encontrado." });
     }
 
+    const updateData = { nome, email };
+
+    if (senha && senha.trim() !== "") {
+      const hashedPassword = await bcrypt.hash(senha, 10);
+      updateData.senha = hashedPassword;
+    }
+
     const updatedAdmin = await prisma.admin.update({
       where: { id_admin },
-      data: { nome, email },
+      data: updateData,
     });
 
     res.status(200).json({
@@ -245,6 +252,7 @@ router.put("/:id", async (req, res) => {
     res.status(401).json({ error: "Token inválido ou expirado." });
   }
 });
+
 
 router.delete("/:id", async (req, res) => {
   try {

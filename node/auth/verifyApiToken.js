@@ -1,3 +1,4 @@
+require('dotenv').config();
 module.exports = function (req, res, next) {
   const token = req.headers['x-api-key'];
   const expectedToken = process.env.API_TOKEN;
