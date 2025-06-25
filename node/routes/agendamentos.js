@@ -177,11 +177,14 @@ router.post("/telefone", async (req, res) => {
 router.get("/", async (req, res) => {
   try {
     const agendamentos = await prisma.agendamento.findMany({
+      orderBy: {
+        id_agendamento: 'desc',
+      },
       include: {
         cliente: {
           select: {
             nome_cliente: true,
-            telefone_cliente: true,   // <== Inclua aqui o telefone
+            telefone_cliente: true, 
             endereco: {
               include: {
                 zona: true,
@@ -200,7 +203,7 @@ router.get("/", async (req, res) => {
     const resultadoFormatado = agendamentos.map((a) => ({
       id_agendamento: a.id_agendamento,
       nome_cliente: a.cliente.nome_cliente,
-      telefone_cliente: a.cliente.telefone_cliente,   // <== Retorne o telefone também
+      telefone_cliente: a.cliente.telefone_cliente,
       zona: a.cliente.endereco?.zona?.nome_da_zona || "Zona não informada",
       data_agendada: a.dia_agendado,
       turno: a.turno_agendado,
@@ -215,6 +218,7 @@ router.get("/", async (req, res) => {
     res.status(500).json({ error: "Erro ao buscar agendamentos" });
   }
 });
+
 
 router.get("/pendentes", async (req, res) => {
   try {
