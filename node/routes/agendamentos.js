@@ -363,23 +363,7 @@ router.put("/telefone/:telefone_cliente", async (req, res) => {
   }
 });
 
-// Deletar agendamento
-router.delete("/:id", async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    await prisma.agendamento.delete({
-      where: { id_agendamento: parseInt(id) },
-    });
-
-    res.status(200).json({ message: "Agendamento deletado com sucesso" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erro ao deletar agendamento" });
-  }
-});
-
-//Cancelar agendamento do cliente através do telefone
+// Cancelar agendamento
 router.delete("/telefone/:telefone_cliente", async (req, res) => {
   const { telefone_cliente } = req.params;
 
@@ -387,7 +371,11 @@ router.delete("/telefone/:telefone_cliente", async (req, res) => {
     const cliente = await prisma.cliente.findUnique({
       where: { telefone_cliente },
       include: {
-        agendamentos: true,
+        agendamentos: {
+          orderBy: {
+            id_agendamento: "asc",
+          },
+        },
       },
     });
 
@@ -397,47 +385,26 @@ router.delete("/telefone/:telefone_cliente", async (req, res) => {
         .json({ error: "Cliente não encontrado com esse telefone." });
     }
 
-    const agendamento = cliente.agendamentos[0];
+    const agendamento = cliente.agendamentos.find(
+      (a) => a.status === "PENDENTE"
+    );
+
     if (!agendamento) {
-      return res.status(404).json({ error: "Agendamento não encontrado." });
+      return res.status(404).json({ error: "Nenhum agendamento PENDENTE encontrado para esse cliente." });
     }
 
-    const agendamentoExistente = await prisma.agendamento.findUnique({
+    await prisma.agendamento.update({
       where: { id_agendamento: agendamento.id_agendamento },
-    });
-
-    if (!agendamentoExistente) {
-      return res
-        .status(404)
-        .json({ error: "Agendamento Existente não encontrado." });
-    }
-
-    const agendamentoAtualizado = await prisma.agendamento.update({
-      where: { id_agendamento: agendamentoExistente.id_agendamento },
       data: {
         status: "CANCELADO",
       },
     });
 
-    res.status(200).json({ message: "Agendamento deletado com sucesso" });
+    res.status(200).json({ message: "Agendamento cancelado com sucesso" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Erro ao deletar agendamento" });
+    res.status(500).json({ error: "Erro ao cancelar agendamento" });
   }
-});
-
-const formatAgendamento = (a) => ({
-  id_agendamento: a.id_agendamento,
-  nome_cliente: a.cliente?.nome_cliente || "Cliente não informado",
-  zona:
-    a.cliente?.endereco?.zona?.nome_da_zona ||
-    a.zona?.nome_da_zona ||
-    "Zona não definida",
-  data_agendada: a.dia_agendado,
-  turno: a.turno_agendado,
-  responsavel: a.usuario?.nome || "Responsável não informado",
-  observacoes: a.observacoes || "",
-  status: a.status || "PENDENTE",
 });
 
 module.exports = router;
