@@ -10,6 +10,9 @@ const zona = require('./routes/zonas')
 const relatoriosRouter = require("./routes/relatorios");
 const admin = require('./routes/admin');
 
+const verifyApiToken = require('./auth/verifyApiToken');
+app.use(verifyApiToken);
+
 const corsOptions = { 
     credentials : true , 
     origin : [ 'http://localhost:5173' , 'https://scheduling-server-production.up.railway.app/' ]
