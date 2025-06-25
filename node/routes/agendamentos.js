@@ -204,6 +204,7 @@ router.get("/", async (req, res) => {
       turno: a.turno_agendado,
       responsavel: a.usuario?.nome || "Responsável não informado",
       observacoes: a.observacoes || "",
+      status: a.status || "PENDENTE",
     }));
 
     res.json(resultadoFormatado);
