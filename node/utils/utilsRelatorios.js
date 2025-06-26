@@ -169,31 +169,39 @@ function parseDias(dias) {
   // Caso não seja reconhecido:
   return [];
 }
-
 function agruparPrevisoesPorCliente(clientes, agendamentos, dataInicio, dataFim) {
   return clientes
     .map(cliente => {
       const zona = cliente.endereco?.zona;
       const diasSemana = parseDias(zona?.dias?.dias || zona?.dias);
 
+      // Pega o agendamento mais recente do cliente
+      const agendamentosCliente = agendamentos.filter(
+        a => a.cliente.id_cliente === cliente.id_cliente
+      );
+
+      if (agendamentosCliente.length === 0) return null;
+
+      const dataAgendamentoMaisRecente = agendamentosCliente
+        .map(a => a.dia_agendado)
+        .sort((a, b) => b - a)[0]; // mais recente
+
+      // Gerar datas previstas somente a partir do agendamento individual até o fim do mês
       const datasColetasPrevistas = diasSemana.length > 0
-        ? gerarDatasPrevistas(diasSemana, dataInicio, dataFim)
+        ? gerarDatasPrevistas(diasSemana, dataAgendamentoMaisRecente, dataFim)
         : [];
-
-      const agendamentosCliente = agendamentos.filter(a => a.cliente.id_cliente === cliente.id_cliente);
-
-      console.log(`Cliente: ${cliente.nome_cliente}`);
-      console.log(`  Zona: ${zona?.nome_da_zona}`);
-      console.log(`  Dias da semana corrigidos:`, diasSemana);
-      console.log(`  Coletas previstas (${datasColetasPrevistas.length}):`, datasColetasPrevistas.map(d => d.toISOString().split("T")[0]));
-      console.log(`  Agendamentos (${agendamentosCliente.length}):`, agendamentosCliente.map(a => a.dia_agendado.toISOString().split("T")[0]));
-
-      const total_previstos = datasColetasPrevistas.length + agendamentosCliente.length;
 
       const datasUnificadasSet = new Set([
         ...datasColetasPrevistas.map(d => d.toISOString().split("T")[0]),
-        ...agendamentosCliente.map(a => a.dia_agendado.toISOString().split("T")[0])
+        ...agendamentosCliente
+          .map(a => a.dia_agendado.toISOString().split("T")[0])
+          .filter(d => {
+            // Não incluir agendamentos anteriores ao próprio agendamento mais recente
+            return new Date(d) >= dataAgendamentoMaisRecente;
+          })
       ]);
+
+      const total_previstos = datasUnificadasSet.size;
 
       if (total_previstos === 0) return null;
 
