@@ -187,6 +187,7 @@ router.get("/", async (req, res) => {
         cliente: {
           select: {
             nome_cliente: true,
+            qr_code: true,
             telefone_cliente: true, 
             endereco: {
               include: {
@@ -206,6 +207,7 @@ router.get("/", async (req, res) => {
     const resultadoFormatado = agendamentos.map((a) => ({
       id_agendamento: a.id_agendamento,
       nome_cliente: a.cliente.nome_cliente,
+      qr_code: a.cliente?.qr_code || "QR Code não informado",
       telefone_cliente: a.cliente.telefone_cliente,
       zona: a.cliente.endereco?.zona?.nome_da_zona || "Zona não informada",
       data_agendada: a.dia_agendado,
