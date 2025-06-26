@@ -250,9 +250,8 @@ router.get("/pendentes", async (req, res) => {
     res.status(500).json({ error: "Erro ao buscar agendamentos pendentes" });
   }
 });
-
 router.put("/registro", async (req, res) => {
-  const { qr_code, dia_realizado, hora_realizado } = req.body;
+  const { qr_code, dia_realizado, hora_realizado, id_usuario } = req.body;
 
   try {
     const cliente = await prisma.cliente.findUnique({
@@ -286,12 +285,14 @@ router.put("/registro", async (req, res) => {
         dia_realizado: parseData(dia_realizado),
         horario_realizado: hora_realizado || undefined,
         status: StatusAgendamento.REALIZADO,
+        id_usuario: id_usuario, 
       },
       include: {
         cliente: {
           select: { nome_cliente: true },
         },
         zona: true,
+        usuario: { select: { nome: true } }, // incluir usuário responsável no retorno
       },
     });
 
