@@ -246,9 +246,7 @@ router.get("/coletas-previstas", async (req, res) => {
   const { nomeCliente, nomeZona, startDate, endDate } = req.query;
 
   if (!startDate || !endDate) {
-    return res
-      .status(400)
-      .json({ error: "Informe o período (startDate e endDate)." });
+    return res.status(400).json({ error: "Informe o período (startDate e endDate)." });
   }
 
   const dataInicio = new Date(`${startDate}T03:00:00Z`);
@@ -271,16 +269,16 @@ router.get("/coletas-previstas", async (req, res) => {
       zonaId = zona.id;
     }
 
-    const filtroClientes = {};
-    if (nomeCliente) {
-      filtroClientes.nome_cliente = { contains: nomeCliente, mode: "insensitive" };
-    }
-    if (zonaId) {
-      filtroClientes.endereco = { zona: { id: zonaId } };
-    }
+    const { filtroAgendamento } = montarFiltros({
+      nomeCliente,
+      startDate,
+      endDate,
+      zonaId,
+      status: { in: ["PENDENTE", "REALIZADO", "CANCELADO"] },
+    });
 
     const clientes = await prisma.cliente.findMany({
-      where: filtroClientes,
+      where: filtroAgendamento.cliente,
       select: {
         id_cliente: true,
         nome_cliente: true,
@@ -294,62 +292,28 @@ router.get("/coletas-previstas", async (req, res) => {
       },
     });
 
-    if (clientes.length === 0) {
-      return res.status(200).json([]);
-    }
-
     const agendamentos = await prisma.agendamento.findMany({
       where: {
+        ...filtroAgendamento,
         id_cliente: { in: clientes.map((c) => c.id_cliente) },
-        dia_agendado: { gte: dataInicio, lte: dataFim },
       },
       select: {
         id_agendamento: true,
+        id_cliente: true,
         dia_agendado: true,
         dia_realizado: true,
         status: true,
-        id_cliente: true,
       },
     });
 
-    const resultadoCompleto = clientes.map((cliente) => {
-      const zona = cliente.endereco?.zona;
-      const diasZona = zona?.dias || [];
-
-      const datasPrevistas = [];
-      const dataTemp = new Date(dataInicio);
-      while (dataTemp <= dataFim) {
-        const diaSemana = dataTemp.toLocaleDateString("pt-BR", { weekday: "short" }).toLowerCase().substring(0, 3);
-        if (diasZona.includes(diaSemana)) {
-          datasPrevistas.push(new Date(dataTemp).toISOString().split("T")[0]);
-        }
-        dataTemp.setDate(dataTemp.getDate() + 1);
-      }
-
-      const agsCliente = agendamentos.filter(a => a.id_cliente === cliente.id_cliente);
-
-      const datasRealizadas = agsCliente
-        .filter(a => a.status === "REALIZADO")
-        .map(a => new Date(a.dia_agendado).toISOString().split("T")[0]);
-
-      const datasCanceladas = agsCliente
-        .filter(a => a.status === "CANCELADO")
-        .map(a => new Date(a.dia_agendado).toISOString().split("T")[0]);
-
-      return {
-        nome_cliente: cliente.nome_cliente,
-        zona: zona?.nome_da_zona || "Não definida",
-        datas_previstas: datasPrevistas,
-        datas_realizadas: datasRealizadas,
-        datas_canceladas: datasCanceladas,
-      };
-    });
-
-    return res.status(200).json(resultadoCompleto);
+    const resultado = agruparPrevisoesPorCliente(clientes, agendamentos, dataInicio, dataFim);
+    res.status(200).json(resultado);
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: "Erro ao buscar coletas previstas" });
+    res.status(500).json({ error: "Erro ao buscar coletas previstas" });
   }
 });
+
+module.exports = router;
 
 module.exports = router;

@@ -137,41 +137,40 @@ function parseDias(dias) {
 
   return [];
 }
-
 function agruparPrevisoesPorCliente(clientes, agendamentos, dataInicio, dataFim) {
   return clientes.map((cliente) => {
     const zona = cliente.endereco?.zona;
-    const diasSemana = parseDias(zona?.dias?.dias || zona?.dias);
+    const diasSemana = parseDias(zona?.dias?.dias || zona?.dias || []);
     const agendamentosCliente = agendamentos.filter(
       (a) => a.cliente.id_cliente === cliente.id_cliente
     );
 
+    // Separar os tipos
     const datasRealizadas = agendamentosCliente
       .filter((a) => a.status === "REALIZADO" && a.dia_realizado)
       .map((a) => a.dia_realizado.toISOString().split("T")[0]);
 
-    const dataAgendamentoMaisRecente = agendamentosCliente
-      .map((a) => a.dia_agendado)
-      .sort((a, b) => b - a)[0] || dataInicio;
+    const datasCanceladas = agendamentosCliente
+      .filter((a) => a.status === "CANCELADO" && a.dia_agendado)
+      .map((a) => a.dia_agendado.toISOString().split("T")[0]);
 
-    const datasColetasPrevistas = diasSemana.length > 0
-      ? gerarDatasPrevistas(diasSemana, dataAgendamentoMaisRecente, dataFim)
-      : [];
+    const datasPendentes = agendamentosCliente
+      .filter((a) => a.status === "PENDENTE" && a.dia_agendado)
+      .map((a) => a.dia_agendado.toISOString().split("T")[0]);
 
-    const datasPrevistasFormatadas = datasColetasPrevistas
-      .map((d) => d.toISOString().split("T")[0])
-      .filter((d) => !datasRealizadas.includes(d)); // só marca como P se ainda não foi realizado
-
-    const todas = new Set([...datasPrevistasFormatadas, ...datasRealizadas]);
+    const datasPrevistas = gerarDatasPrevistas(diasSemana, dataInicio, dataFim)
+      .map((d) => d.toISOString().split("T")[0]);
 
     return {
       nome_cliente: cliente.nome_cliente,
       zona: zona?.nome_da_zona || "Não definida",
-      datas_previstas: Array.from(todas).sort(),
+      cor: zona?.cor || "default",
+      datas_previstas: datasPrevistas,
       datas_realizadas: datasRealizadas,
-      total_previstos: todas.size,
+      datas_canceladas: datasCanceladas,
+      datas_pendentes: datasPendentes,
     };
-  }).filter(Boolean);
+  });
 }
 
 module.exports = {
