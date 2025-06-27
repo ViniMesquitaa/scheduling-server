@@ -273,7 +273,7 @@ router.get("/coletas-previstas", async (req, res) => {
       startDate,
       endDate,
       zonaId,
-      status: ["PENDENTE", "REALIZADO", "CANCELADO"],
+       status: { in: ["PENDENTE", "REALIZADO", "CANCELADO"] },
     });
 
     const clientes = await prisma.cliente.findMany({
