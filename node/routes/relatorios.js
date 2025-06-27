@@ -53,26 +53,29 @@ router.get("/agendamentos-cancelados", async (req, res) => {
     res.status(500).json({ error: "Erro ao buscar agendamentos cancelados" });
   }
 });
+
 router.get("/coletas-por-cliente", async (req, res) => {
   const { startDate, endDate } = req.query;
 
-  if (
-    !startDate ||
-    !endDate ||
-    isNaN(new Date(startDate)) ||
-    isNaN(new Date(endDate))
-  ) {
+  if (!startDate || !endDate) {
     return res.status(400).json({ error: "Datas inválidas ou ausentes" });
   }
 
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  end.setHours(23, 59, 59, 999);
+
+  if (isNaN(start) || isNaN(end)) {
+    return res.status(400).json({ error: "Datas inválidas" });
+  }
+
   try {
-    // Buscar todos os status e contar por cliente
     const dados = await prisma.agendamento.groupBy({
       by: ["id_cliente", "status"],
       where: {
         dia_agendado: {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
+          gte: start,
+          lte: end,
         },
       },
       _count: {
@@ -80,16 +83,29 @@ router.get("/coletas-por-cliente", async (req, res) => {
       },
     });
 
-    // Extrair clientes únicos
     const clienteIds = [...new Set(dados.map((item) => item.id_cliente))];
+
+    if (clienteIds.length === 0) {
+      return res.json([]);
+    }
 
     const clientes = await prisma.cliente.findMany({
       where: { id_cliente: { in: clienteIds } },
-      select: { id_cliente: true, nome_cliente: true, zona: true },
+      select: {
+        id_cliente: true,
+        nome_cliente: true,
+        zona: { select: { nome_da_zona: true } },
+      },
     });
 
     const clienteMap = new Map(
-      clientes.map((cli) => [cli.id_cliente, { nome: cli.nome_cliente, zona: cli.zona }])
+      clientes.map((cli) => [
+        cli.id_cliente,
+        {
+          nome: cli.nome_cliente,
+          zona: cli.zona?.nome_da_zona || "Indefinida",
+        },
+      ])
     );
 
     const resultadoMap = new Map();
@@ -97,7 +113,8 @@ router.get("/coletas-por-cliente", async (req, res) => {
     dados.forEach(({ id_cliente, status, _count }) => {
       if (!resultadoMap.has(id_cliente)) {
         resultadoMap.set(id_cliente, {
-          nome_cliente: clienteMap.get(id_cliente)?.nome || "Cliente não encontrado",
+          nome_cliente:
+            clienteMap.get(id_cliente)?.nome || "Cliente não encontrado",
           zona: clienteMap.get(id_cliente)?.zona || "Indefinida",
           coletasRealizadas: 0,
           coletasPrevistas: 0,
@@ -107,14 +124,17 @@ router.get("/coletas-por-cliente", async (req, res) => {
       const clienteData = resultadoMap.get(id_cliente);
 
       if (status === "REALIZADO") clienteData.coletasRealizadas = _count._all;
-      else if (status === "PENDENTE") clienteData.coletasPrevistas = _count._all;
-      else if (status === "CANCELADO") clienteData.coletasCanceladas = _count._all;
+      else if (status === "PENDENTE")
+        clienteData.coletasPrevistas = _count._all;
+      else if (status === "CANCELADO")
+        clienteData.coletasCanceladas = _count._all;
     });
 
     clientes.forEach(({ id_cliente }) => {
       if (!resultadoMap.has(id_cliente)) {
         resultadoMap.set(id_cliente, {
-          nome_cliente: clienteMap.get(id_cliente)?.nome || "Cliente não encontrado",
+          nome_cliente:
+            clienteMap.get(id_cliente)?.nome || "Cliente não encontrado",
           zona: clienteMap.get(id_cliente)?.zona || "Indefinida",
           coletasRealizadas: 0,
           coletasPrevistas: 0,
@@ -127,7 +147,7 @@ router.get("/coletas-por-cliente", async (req, res) => {
 
     res.json(resultado);
   } catch (err) {
-    console.error(err);
+    console.error("Erro ao buscar coletas por cliente:", err);
     res.status(500).json({ error: "Erro ao buscar coletas por cliente" });
   }
 });
@@ -204,11 +224,13 @@ router.get("/coletas-realizadas", async (req, res) => {
   }
 });
 
-router.get('/coletas-previstas', async (req, res) => {
+router.get("/coletas-previstas", async (req, res) => {
   const { nomeCliente, nomeZona, startDate, endDate } = req.query;
 
   if (!startDate || !endDate) {
-    return res.status(400).json({ error: "Informe o período (startDate e endDate)." });
+    return res
+      .status(400)
+      .json({ error: "Informe o período (startDate e endDate)." });
   }
 
   const dataInicio = new Date(`${startDate}T03:00:00Z`);
@@ -216,13 +238,19 @@ router.get('/coletas-previstas', async (req, res) => {
   const diffEmDias = (dataFim - dataInicio) / (1000 * 60 * 60 * 24);
 
   if (diffEmDias > 31) {
-    return res.status(400).json({ error: "O intervalo entre as datas não pode ultrapassar 31 dias." });
+    return res
+      .status(400)
+      .json({
+        error: "O intervalo entre as datas não pode ultrapassar 31 dias.",
+      });
   }
 
   try {
     let zonaId = null;
     if (nomeZona) {
-      const zona = await prisma.zona.findUnique({ where: { nome_da_zona: nomeZona } });
+      const zona = await prisma.zona.findUnique({
+        where: { nome_da_zona: nomeZona },
+      });
       if (!zona) return res.status(404).json({ error: "Zona não encontrada" });
       zonaId = zona.id;
     }
@@ -231,7 +259,7 @@ router.get('/coletas-previstas', async (req, res) => {
       startDate,
       endDate,
       zonaId,
-      status: "PENDENTE"
+      status: "PENDENTE",
     });
 
     const clientes = await prisma.cliente.findMany({
@@ -241,10 +269,10 @@ router.get('/coletas-previstas', async (req, res) => {
         nome_cliente: true,
         endereco: {
           select: {
-            zona: { select: { id: true, nome_da_zona: true, dias: true } }
-          }
-        }
-      }
+            zona: { select: { id: true, nome_da_zona: true, dias: true } },
+          },
+        },
+      },
     });
 
     if (clientes.length === 0) {
@@ -254,7 +282,7 @@ router.get('/coletas-previstas', async (req, res) => {
     const agendamentos = await prisma.agendamento.findMany({
       where: {
         ...filtroAgendamento,
-        id_cliente: { in: clientes.map(c => c.id_cliente) }
+        id_cliente: { in: clientes.map((c) => c.id_cliente) },
       },
       select: {
         id_agendamento: true,
@@ -265,23 +293,29 @@ router.get('/coletas-previstas', async (req, res) => {
             nome_cliente: true,
             endereco: {
               select: {
-                zona: { select: { id: true, nome_da_zona: true, dias: true } }
-              }
-            }
-          }
-        }
-      }
+                zona: { select: { id: true, nome_da_zona: true, dias: true } },
+              },
+            },
+          },
+        },
+      },
     });
 
-    const resultadoCompleto = agruparPrevisoesPorCliente(clientes, agendamentos, dataInicio, dataFim);
-    const resultadoFiltrado = resultadoCompleto.filter(c => c.datas_previstas.length > 0);
+    const resultadoCompleto = agruparPrevisoesPorCliente(
+      clientes,
+      agendamentos,
+      dataInicio,
+      dataFim
+    );
+    const resultadoFiltrado = resultadoCompleto.filter(
+      (c) => c.datas_previstas.length > 0
+    );
 
     res.status(200).json(resultadoFiltrado);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Erro ao buscar coletas previstas' });
+    res.status(500).json({ error: "Erro ao buscar coletas previstas" });
   }
 });
-
 
 module.exports = router;
