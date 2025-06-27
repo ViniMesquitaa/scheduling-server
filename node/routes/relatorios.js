@@ -53,7 +53,6 @@ router.get("/agendamentos-cancelados", async (req, res) => {
     res.status(500).json({ error: "Erro ao buscar agendamentos cancelados" });
   }
 });
-
 router.get("/coletas-por-cliente", async (req, res) => {
   const { startDate, endDate } = req.query;
 
@@ -67,10 +66,10 @@ router.get("/coletas-por-cliente", async (req, res) => {
   }
 
   try {
+    // Buscar todos os status e contar por cliente
     const dados = await prisma.agendamento.groupBy({
-      by: ["id_cliente"],
+      by: ["id_cliente", "status"],
       where: {
-        status: "REALIZADO",
         dia_agendado: {
           gte: new Date(startDate),
           lte: new Date(endDate),
@@ -81,21 +80,50 @@ router.get("/coletas-por-cliente", async (req, res) => {
       },
     });
 
-    const clienteIds = dados.map((item) => item.id_cliente);
+    // Extrair clientes únicos
+    const clienteIds = [...new Set(dados.map((item) => item.id_cliente))];
 
     const clientes = await prisma.cliente.findMany({
       where: { id_cliente: { in: clienteIds } },
-      select: { id_cliente: true, nome_cliente: true },
+      select: { id_cliente: true, nome_cliente: true, zona: true },
     });
 
     const clienteMap = new Map(
-      clientes.map((cli) => [cli.id_cliente, cli.nome_cliente])
+      clientes.map((cli) => [cli.id_cliente, { nome: cli.nome_cliente, zona: cli.zona }])
     );
 
-    const resultado = dados.map((item) => ({
-      nome_cliente: clienteMap.get(item.id_cliente) || "Cliente não encontrado",
-      quantidade_de_coletas: item._count._all,
-    }));
+    const resultadoMap = new Map();
+
+    dados.forEach(({ id_cliente, status, _count }) => {
+      if (!resultadoMap.has(id_cliente)) {
+        resultadoMap.set(id_cliente, {
+          nome_cliente: clienteMap.get(id_cliente)?.nome || "Cliente não encontrado",
+          zona: clienteMap.get(id_cliente)?.zona || "Indefinida",
+          coletasRealizadas: 0,
+          coletasPrevistas: 0,
+          coletasCanceladas: 0,
+        });
+      }
+      const clienteData = resultadoMap.get(id_cliente);
+
+      if (status === "REALIZADO") clienteData.coletasRealizadas = _count._all;
+      else if (status === "PENDENTE") clienteData.coletasPrevistas = _count._all;
+      else if (status === "CANCELADO") clienteData.coletasCanceladas = _count._all;
+    });
+
+    clientes.forEach(({ id_cliente }) => {
+      if (!resultadoMap.has(id_cliente)) {
+        resultadoMap.set(id_cliente, {
+          nome_cliente: clienteMap.get(id_cliente)?.nome || "Cliente não encontrado",
+          zona: clienteMap.get(id_cliente)?.zona || "Indefinida",
+          coletasRealizadas: 0,
+          coletasPrevistas: 0,
+          coletasCanceladas: 0,
+        });
+      }
+    });
+
+    const resultado = Array.from(resultadoMap.values());
 
     res.json(resultado);
   } catch (err) {
