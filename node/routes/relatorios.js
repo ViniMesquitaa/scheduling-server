@@ -53,50 +53,34 @@ router.get("/agendamentos-cancelados", async (req, res) => {
     res.status(500).json({ error: "Erro ao buscar agendamentos cancelados" });
   }
 });
-
 router.get("/coletas-por-cliente", async (req, res) => {
   const { startDate, endDate } = req.query;
-
-  if (!startDate || !endDate) {
-    return res.status(400).json({ error: "Datas inválidas ou ausentes" });
-  }
+  if (!startDate || !endDate) return res.status(400).json({ error: "Datas inválidas ou ausentes" });
 
   const start = new Date(startDate);
   const end = new Date(endDate);
+  if (isNaN(start) || isNaN(end)) return res.status(400).json({ error: "Datas inválidas" });
   end.setHours(23, 59, 59, 999);
-
-  if (isNaN(start) || isNaN(end)) {
-    return res.status(400).json({ error: "Datas inválidas" });
-  }
 
   try {
     const dados = await prisma.agendamento.groupBy({
       by: ["id_cliente", "status"],
-      where: {
-        dia_agendado: { gte: start, lte: end }
-      },
-      _count: { _all: true },
+      where: { dia_agendado: { gte: start, lte: end } },
+      _count: { _all: true }
     });
-
-    const ids = [...new Set(dados.map(d => d.id_cliente))];
-    if (ids.length === 0) return res.json([]);
+    const clienteIds = [...new Set(dados.map(d => d.id_cliente))];
+    if (clienteIds.length === 0) return res.json([]);
 
     const clientes = await prisma.cliente.findMany({
-      where: { id_cliente: { in: ids } },
+      where: { id_cliente: { in: clienteIds } },
       select: {
         id_cliente: true,
         nome_cliente: true,
-        endereco: {
-          select: {
-            zona: {
-              select: { nome_da_zona: true, cor: true }
-            }
-          }
-        }
+        endereco: { select: { zona: { select: { nome_da_zona: true, cor: true } } } }
       }
     });
 
-    const mapCli = new Map(clientes.map(c => [
+    const mapaCli = new Map(clientes.map(c => [
       c.id_cliente,
       {
         nome: c.nome_cliente,
@@ -105,31 +89,31 @@ router.get("/coletas-por-cliente", async (req, res) => {
       }
     ]));
 
-    const result = new Map();
-    dados.forEach(({ id_cliente, status, _count: cnt }) => {
-      if (!result.has(id_cliente)) {
-        const base = mapCli.get(id_cliente) || { nome: "Cliente não encontrado", zona: "Indefinida", cor: "gray" };
-        result.set(id_cliente, { 
-          nome_cliente: base.nome, zona: base.zona, cor: base.cor,
-          coletasRealizadas: 0, coletasPrevistas: 0, coletasCanceladas: 0
-        });
-      }
-      const rec = result.get(id_cliente);
-      if (status === "REALIZADO") rec.coletasRealizadas = cnt._all;
-      if (status === "PENDENTE") rec.coletasPrevistas = cnt._all;
-      if (status === "CANCELADO") rec.coletasCanceladas = cnt._all;
+    const resultMap = new Map();
+
+    // Inicializa todos os status para cada cliente
+    clienteIds.forEach(id => {
+      const info = mapaCli.get(id);
+      resultMap.set(id, {
+        nome_cliente: info.nome,
+        zona: info.zona,
+        cor: info.cor,
+        coletasPrevistas: 0,
+        coletasRealizadas: 0,
+        coletasCanceladas: 0,
+      });
     });
 
-    // Garantir todos clientes listados
-    ids.forEach(id => {
-      if (!result.has(id)) {
-        const base = mapCli.get(id);
-        result.set(id, { nome_cliente: base?.nome || "...", zona: base?.zona || "...", cor: base?.cor || "gray",
-          coletasRealizadas:0, coletasPrevistas:0, coletasCanceladas:0 });
-      }
+    // Preenche contagens por status
+    dados.forEach(({ id_cliente, status, _count }) => {
+      const rec = resultMap.get(id_cliente);
+      if (!rec) return;
+      if (status === "PENDENTE") rec.coletasPrevistas = _count._all;
+      else if (status === "REALIZADO") rec.coletasRealizadas = _count._all;
+      else if (status === "CANCELADO") rec.coletasCanceladas = _count._all;
     });
 
-    res.json(Array.from(result.values()));
+    res.json(Array.from(resultMap.values()));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Erro ao buscar coletas por cliente" });
