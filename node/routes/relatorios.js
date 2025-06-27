@@ -108,9 +108,10 @@ router.get("/coletas-por-cliente", async (req, res) => {
     dados.forEach(({ id_cliente, status, _count }) => {
       const rec = resultMap.get(id_cliente);
       if (!rec) return;
-      if (status === "PENDENTE") rec.coletasPrevistas = _count._all;
-      else if (status === "REALIZADO") rec.coletasRealizadas = _count._all;
-      else if (status === "CANCELADO") rec.coletasCanceladas = _count._all;
+      if (status === "REALIZADO") clienteData.coletasRealizadas += _count._all;
+else if (status === "PENDENTE") clienteData.coletasPrevistas += _count._all;
+else if (status === "CANCELADO") clienteData.coletasCanceladas += _count._all;
+
     });
 
     res.json(Array.from(resultMap.values()));
