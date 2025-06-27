@@ -59,7 +59,8 @@ function agruparPorCliente(coletas, agendamentos) {
       clientesMap[id] = {
         nome_cliente: item.cliente.nome_cliente,
         zona: {
-          nome_da_zona: item.cliente.endereco?.zona?.nome_da_zona || "Não definida",
+          nome_da_zona:
+            item.cliente.endereco?.zona?.nome_da_zona || "Não definida",
           cor: item.cliente.endereco?.zona?.cor || "cinza",
         },
         realizadas: 0,
@@ -96,7 +97,10 @@ function gerarDatasPrevistas(diasSemana, dataInicio, dataFim) {
   };
 
   const normalizar = (str) =>
-    str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    str
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
 
   const diasNumeros = diasSemana
     .map((dia) => {
@@ -137,38 +141,63 @@ function parseDias(dias) {
 
   return [];
 }
-function agruparPrevisoesPorCliente(clientes, agendamentos, dataInicio, dataFim) {
+
+function agruparPrevisoesPorCliente(
+  clientes,
+  agendamentos,
+  dataInicio,
+  dataFim
+) {
   return clientes.map((cliente) => {
     const zona = cliente.endereco?.zona;
-    const diasSemana = parseDias(zona?.dias?.dias || zona?.dias || []);
+    const diasSemana = parseDias(zona?.dias?.dias || zona?.dias);
+
     const agendamentosCliente = agendamentos.filter(
-      (a) => a.cliente.id_cliente === cliente.id_cliente
+      (a) => a.cliente?.id_cliente === cliente.id_cliente
     );
 
-    // Separar os tipos
-    const datasRealizadas = agendamentosCliente
-      .filter((a) => a.status === "REALIZADO" && a.dia_realizado)
-      .map((a) => a.dia_realizado.toISOString().split("T")[0]);
+    const realizadas = new Set();
+    const canceladas = new Set();
+    const pendentes = new Set();
 
-    const datasCanceladas = agendamentosCliente
-      .filter((a) => a.status === "CANCELADO" && a.dia_agendado)
-      .map((a) => a.dia_agendado.toISOString().split("T")[0]);
+    agendamentosCliente.forEach((ag) => {
+      const data = ag.dia_agendado || ag.dia_realizado;
+      if (!data) return;
 
-    const datasPendentes = agendamentosCliente
-      .filter((a) => a.status === "PENDENTE" && a.dia_agendado)
-      .map((a) => a.dia_agendado.toISOString().split("T")[0]);
+      const dataStr = new Date(data).toISOString().split("T")[0];
 
-    const datasPrevistas = gerarDatasPrevistas(diasSemana, dataInicio, dataFim)
-      .map((d) => d.toISOString().split("T")[0]);
+      if (ag.status === "REALIZADO") realizadas.add(dataStr);
+      else if (ag.status === "CANCELADO") canceladas.add(dataStr);
+      else if (ag.status === "PENDENTE") pendentes.add(dataStr);
+    });
+
+    // Gera previsões com base na zona do cliente
+    const datasPrevistas =
+      diasSemana.length > 0
+        ? gerarDatasPrevistas(diasSemana, dataInicio, dataFim)
+        : [];
+
+    const datasPrevistasStr = datasPrevistas.map(
+      (d) => d.toISOString().split("T")[0]
+    );
+
+    // Evita duplicidade: se data estiver realizada/cancelada/pendente, mantém
+    const datasCompletas = new Set([
+      ...datasPrevistasStr,
+      ...realizadas,
+      ...canceladas,
+      ...pendentes,
+    ]);
 
     return {
       nome_cliente: cliente.nome_cliente,
       zona: zona?.nome_da_zona || "Não definida",
-      cor: zona?.cor || "default",
-      datas_previstas: datasPrevistas,
-      datas_realizadas: datasRealizadas,
-      datas_canceladas: datasCanceladas,
-      datas_pendentes: datasPendentes,
+      cor: zona?.cor || "cinza",
+      datas_previstas: Array.from(datasCompletas).sort(),
+      datas_realizadas: Array.from(realizadas),
+      datas_canceladas: Array.from(canceladas),
+      datas_pendentes: Array.from(pendentes),
+      total_previstos: datasCompletas.size,
     };
   });
 }

@@ -241,7 +241,6 @@ router.get("/coletas-realizadas", async (req, res) => {
     res.status(500).json({ error: "Erro ao buscar coletas realizadas" });
   }
 });
-
 router.get("/coletas-previstas", async (req, res) => {
   const { nomeCliente, nomeZona, startDate, endDate } = req.query;
 
@@ -262,7 +261,7 @@ router.get("/coletas-previstas", async (req, res) => {
   try {
     let zonaId = null;
     if (nomeZona) {
-      const zona = await prisma.zona.findUnique({
+      const zona = await prisma.zona.findFirst({
         where: { nome_da_zona: nomeZona },
       });
       if (!zona) return res.status(404).json({ error: "Zona não encontrada" });
@@ -274,18 +273,23 @@ router.get("/coletas-previstas", async (req, res) => {
       startDate,
       endDate,
       zonaId,
-      status: { in: ["PENDENTE", "REALIZADO", "CANCELADO"] },
+      status: ["PENDENTE", "REALIZADO", "CANCELADO"],
     });
 
     const clientes = await prisma.cliente.findMany({
-      where: filtroAgendamento.cliente,
+      where: filtroAgendamento.cliente || {},
       select: {
         id_cliente: true,
         nome_cliente: true,
         endereco: {
           select: {
             zona: {
-              select: { id: true, nome_da_zona: true, dias: true, cor: true },
+              select: {
+                id: true,
+                nome_da_zona: true,
+                cor: true,
+                dias: true,
+              },
             },
           },
         },
@@ -295,7 +299,9 @@ router.get("/coletas-previstas", async (req, res) => {
     const agendamentos = await prisma.agendamento.findMany({
       where: {
         ...filtroAgendamento,
-        id_cliente: { in: clientes.map((c) => c.id_cliente) },
+        id_cliente: {
+          in: clientes.map((c) => c.id_cliente),
+        },
       },
       select: {
         id_agendamento: true,
@@ -303,13 +309,18 @@ router.get("/coletas-previstas", async (req, res) => {
         dia_agendado: true,
         dia_realizado: true,
         status: true,
+        cliente: {
+          select: {
+            id_cliente: true,
+          },
+        },
       },
     });
 
     const resultado = agruparPrevisoesPorCliente(clientes, agendamentos, dataInicio, dataFim);
     res.status(200).json(resultado);
   } catch (error) {
-    console.error(error);
+    console.error("Erro interno /coletas-previstas:", error);
     res.status(500).json({ error: "Erro ao buscar coletas previstas" });
   }
 });
