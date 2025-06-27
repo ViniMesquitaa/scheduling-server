@@ -68,6 +68,7 @@ router.get("/coletas-por-cliente", async (req, res) => {
       where: { dia_agendado: { gte: start, lte: end } },
       _count: { _all: true }
     });
+
     const clienteIds = [...new Set(dados.map(d => d.id_cliente))];
     if (clienteIds.length === 0) return res.json([]);
 
@@ -76,7 +77,16 @@ router.get("/coletas-por-cliente", async (req, res) => {
       select: {
         id_cliente: true,
         nome_cliente: true,
-        endereco: { select: { zona: { select: { nome_da_zona: true, cor: true } } } }
+        endereco: {
+          select: {
+            zona: {
+              select: {
+                nome_da_zona: true,
+                cor: true
+              }
+            }
+          }
+        }
       }
     });
 
@@ -91,7 +101,6 @@ router.get("/coletas-por-cliente", async (req, res) => {
 
     const resultMap = new Map();
 
-    // Inicializa todos os status para cada cliente
     clienteIds.forEach(id => {
       const info = mapaCli.get(id);
       resultMap.set(id, {
@@ -104,14 +113,12 @@ router.get("/coletas-por-cliente", async (req, res) => {
       });
     });
 
-    // Preenche contagens por status
     dados.forEach(({ id_cliente, status, _count }) => {
       const rec = resultMap.get(id_cliente);
       if (!rec) return;
-      if (status === "REALIZADO") clienteData.coletasRealizadas += _count._all;
-else if (status === "PENDENTE") clienteData.coletasPrevistas += _count._all;
-else if (status === "CANCELADO") clienteData.coletasCanceladas += _count._all;
-
+      if (status === "REALIZADO") rec.coletasRealizadas += _count._all;
+      else if (status === "PENDENTE") rec.coletasPrevistas += _count._all;
+      else if (status === "CANCELADO") rec.coletasCanceladas += _count._all;
     });
 
     res.json(Array.from(resultMap.values()));
