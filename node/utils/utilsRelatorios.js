@@ -86,18 +86,43 @@ function agruparPorCliente(coletas, agendamentos) {
 }
 
 function gerarDatasPrevistas(diasSemana, dataInicio, dataFim) {
-  const datas = [];
-  const data = new Date(dataInicio);
+  const mapaDias = {
+    dom: 0,
+    seg: 1,
+    ter: 2,
+    qua: 3,
+    qui: 4,
+    sex: 5,
+    sab: 6,
+  };
 
-  while (data <= dataFim) {
-    const diaSemana = data.getDay(); 
-    if (diasSemana.includes(diaSemana)) {
-      datas.push(new Date(data));
+  const normalizar = (str) =>
+    str
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+
+  const diasNumeros = diasSemana
+    .map((dia) => {
+      const chave = normalizar(dia);
+      return mapaDias[chave];
+    })
+    .filter((v) => v !== undefined);
+
+  const datasPrevistas = [];
+  let atual = new Date(dataInicio);
+
+  while (atual <= dataFim) {
+    const diaDaSemana = atual.getDay();
+    if (diasNumeros.includes(diaDaSemana)) {
+      const dataClone = new Date(atual);
+      dataClone.setHours(0, 0, 0, 0);
+      datasPrevistas.push(dataClone);
     }
-    data.setDate(data.getDate() + 1);
+    atual.setDate(atual.getDate() + 1);
   }
 
-  return datas;
+  return datasPrevistas;
 }
 
 function parseDias(dias) {
