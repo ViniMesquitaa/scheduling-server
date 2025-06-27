@@ -175,13 +175,12 @@ router.get("/coletas-realizadas", async (req, res) => {
     res.status(500).json({ error: "Erro ao buscar coletas realizadas" });
   }
 });
-router.get("/coletas-previstas", async (req, res) => {
+
+router.get('/coletas-previstas', async (req, res) => {
   const { nomeCliente, nomeZona, startDate, endDate } = req.query;
 
   if (!startDate || !endDate) {
-    return res
-      .status(400)
-      .json({ error: "Informe o período (startDate e endDate)." });
+    return res.status(400).json({ error: "Informe o período (startDate e endDate)." });
   }
 
   const dataInicio = new Date(`${startDate}T03:00:00Z`);
@@ -189,30 +188,22 @@ router.get("/coletas-previstas", async (req, res) => {
   const diffEmDias = (dataFim - dataInicio) / (1000 * 60 * 60 * 24);
 
   if (diffEmDias > 31) {
-    return res
-      .status(400)
-      .json({
-        error: "O intervalo entre as datas não pode ultrapassar 31 dias.",
-      });
+    return res.status(400).json({ error: "O intervalo entre as datas não pode ultrapassar 31 dias." });
   }
 
   try {
     let zonaId = null;
     if (nomeZona) {
-      const zona = await prisma.zona.findUnique({
-        where: { nome_da_zona: nomeZona },
-      });
+      const zona = await prisma.zona.findUnique({ where: { nome_da_zona: nomeZona } });
       if (!zona) return res.status(404).json({ error: "Zona não encontrada" });
       zonaId = zona.id;
     }
-
-    // Aqui passo o filtro para trazer PENDENTE e REALIZADO
     const { filtroAgendamento } = montarFiltros({
       nomeCliente,
       startDate,
       endDate,
       zonaId,
-      status: { in: ["PENDENTE", "REALIZADO"] },
+      status: "PENDENTE"
     });
 
     const clientes = await prisma.cliente.findMany({
@@ -222,10 +213,10 @@ router.get("/coletas-previstas", async (req, res) => {
         nome_cliente: true,
         endereco: {
           select: {
-            zona: { select: { id: true, nome_da_zona: true, dias: true } },
-          },
-        },
-      },
+            zona: { select: { id: true, nome_da_zona: true, dias: true } }
+          }
+        }
+      }
     });
 
     if (clientes.length === 0) {
@@ -235,7 +226,7 @@ router.get("/coletas-previstas", async (req, res) => {
     const agendamentos = await prisma.agendamento.findMany({
       where: {
         ...filtroAgendamento,
-        id_cliente: { in: clientes.map((c) => c.id_cliente) },
+        id_cliente: { in: clientes.map(c => c.id_cliente) }
       },
       select: {
         id_agendamento: true,
@@ -246,29 +237,23 @@ router.get("/coletas-previstas", async (req, res) => {
             nome_cliente: true,
             endereco: {
               select: {
-                zona: { select: { id: true, nome_da_zona: true, dias: true } },
-              },
-            },
-          },
-        },
-      },
+                zona: { select: { id: true, nome_da_zona: true, dias: true } }
+              }
+            }
+          }
+        }
+      }
     });
 
-    const resultadoCompleto = agruparPrevisoesPorCliente(
-      clientes,
-      agendamentos,
-      dataInicio,
-      dataFim
-    );
-    const resultadoFiltrado = resultadoCompleto.filter(
-      (c) => c.datas_previstas.length > 0
-    );
+    const resultadoCompleto = agruparPrevisoesPorCliente(clientes, agendamentos, dataInicio, dataFim);
+    const resultadoFiltrado = resultadoCompleto.filter(c => c.datas_previstas.length > 0);
 
     res.status(200).json(resultadoFiltrado);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Erro ao buscar coletas previstas" });
+    res.status(500).json({ error: 'Erro ao buscar coletas previstas' });
   }
 });
+
 
 module.exports = router;

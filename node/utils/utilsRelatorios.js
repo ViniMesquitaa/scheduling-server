@@ -3,19 +3,10 @@ function montarFiltros({ nomeCliente, startDate, endDate, zonaId, status }) {
   let filtroAgendamento = {};
 
   if (status) {
-    // Se for string simples (ex: "PENDENTE" ou "REALIZADO")
-    if (typeof status === "string") {
-      filtroAgendamento.status = status;
-    }
-    // Se for objeto (ex: { not: "CANCELADO" } ou { in: ["PENDENTE", "REALIZADO"] })
-    else if (typeof status === "object") {
-      filtroAgendamento.status = status;
-    }
+    filtroAgendamento.status = status;
   }
 
-  if (filtroAgendamento.status === "REALIZADO" || 
-      (filtroAgendamento.status?.in && filtroAgendamento.status.in.includes("REALIZADO")) || 
-      (filtroAgendamento.status?.not)) {
+  if (filtroAgendamento.status === "REALIZADO") {
     if (startDate && endDate) {
       const start = new Date(`${startDate}T03:00:00Z`);
       const end = new Date(`${endDate}T02:59:59Z`);
@@ -31,13 +22,15 @@ function montarFiltros({ nomeCliente, startDate, endDate, zonaId, status }) {
     }
   }
 
-  if (filtroAgendamento.status === "PENDENTE" || 
-      (filtroAgendamento.status?.in && filtroAgendamento.status.in.includes("PENDENTE")) || 
-      (filtroAgendamento.status?.not)) {
+  if (filtroAgendamento.status === "PENDENTE") {
     if (endDate) {
+      // Ajuste aqui: trazer agendamentos com dia_agendado menor ou igual ao fim do mês selecionado
       const end = new Date(`${endDate}T23:59:59Z`);
+
       filtroAgendamento.dia_agendado = {
         lte: end,
+        // opcionalmente, você pode definir um limite mínimo se quiser:
+        // gte: new Date('2023-01-01T00:00:00Z'),
       };
     }
   }
@@ -80,6 +73,7 @@ function montarFiltros({ nomeCliente, startDate, endDate, zonaId, status }) {
 
   return { filtroColeta, filtroAgendamento };
 }
+
 
 function agruparPorCliente(coletas, agendamentos) {
   const clientesMap = {};
