@@ -3,41 +3,22 @@ function montarFiltros({ nomeCliente, startDate, endDate, zonaId, status }) {
   let filtroAgendamento = {};
 
   if (status) {
-    if (Array.isArray(status)) {
-      filtroAgendamento.status = { in: status };
-    } else {
-      filtroAgendamento.status = status;
+    filtroAgendamento.status = status;
+  }
+
+  const start = startDate ? new Date(`${startDate}T03:00:00Z`) : undefined;
+  const end = endDate ? new Date(`${endDate}T02:59:59Z`) : undefined;
+
+  if (Array.isArray(status) && status.includes("REALIZADO")) {
+    if (start && end) {
+      filtroColeta.dia_realizado = { gte: start, lte: end };
+      filtroAgendamento.dia_realizado = { gte: start, lte: end };
     }
   }
 
-  const isRealizado =
-    (Array.isArray(status) && status.includes("REALIZADO")) ||
-    status === "REALIZADO";
-  const isPendente =
-    (Array.isArray(status) && status.includes("PENDENTE")) || status === "PENDENTE";
-
-  if (isRealizado) {
-    if (startDate && endDate) {
-      const start = new Date(`${startDate}T03:00:00Z`);
-      const end = new Date(`${endDate}T02:59:59Z`);
-
-      filtroColeta.dia_realizado = {
-        gte: start,
-        lte: end,
-      };
-      filtroAgendamento.dia_realizado = {
-        gte: start,
-        lte: end,
-      };
-    }
-  }
-
-  if (isPendente) {
-    if (endDate) {
-      const end = new Date(`${endDate}T23:59:59Z`);
-      filtroAgendamento.dia_agendado = {
-        lte: end,
-      };
+  if (Array.isArray(status) && status.includes("PENDENTE")) {
+    if (end) {
+      filtroAgendamento.dia_agendado = { lte: end };
     }
   }
 
@@ -53,33 +34,21 @@ function montarFiltros({ nomeCliente, startDate, endDate, zonaId, status }) {
   }
 
   if (nomeCliente) {
-    filtroColeta.cliente = {
-      is: {
-        nome_cliente: {
-          contains: nomeCliente,
-        },
-      },
+    const nomeFiltro = {
+      contains: nomeCliente,
     };
-    if (isRealizado) {
-      filtroAgendamento.cliente = {
-        is: {
-          nome_cliente: {
-            contains: nomeCliente,
-          },
-        },
-      };
-    } else {
-      filtroAgendamento.cliente = {
-        nome_cliente: {
-          contains: nomeCliente,
-        },
-      };
-    }
+
+    filtroColeta.cliente = {
+      is: { nome_cliente: nomeFiltro },
+    };
+
+    filtroAgendamento.cliente = {
+      is: { nome_cliente: nomeFiltro },
+    };
   }
 
   return { filtroColeta, filtroAgendamento };
 }
-
 
 function agruparPorCliente(coletas, agendamentos) {
   const clientesMap = {};
@@ -170,51 +139,39 @@ function parseDias(dias) {
 }
 
 function agruparPrevisoesPorCliente(clientes, agendamentos, dataInicio, dataFim) {
-  return clientes
-    .map((cliente) => {
-      const zona = cliente.endereco?.zona;
-      const diasSemana = parseDias(zona?.dias?.dias || zona?.dias);
+  return clientes.map((cliente) => {
+    const zona = cliente.endereco?.zona;
+    const diasSemana = parseDias(zona?.dias?.dias || zona?.dias);
+    const agendamentosCliente = agendamentos.filter(
+      (a) => a.cliente.id_cliente === cliente.id_cliente
+    );
 
-      // Pega o agendamento mais recente do cliente até o fim do mês selecionado
-      const agendamentosCliente = agendamentos.filter(
-        (a) => a.cliente.id_cliente === cliente.id_cliente
-      );
+    const datasRealizadas = agendamentosCliente
+      .filter((a) => a.status === "REALIZADO" && a.dia_realizado)
+      .map((a) => a.dia_realizado.toISOString().split("T")[0]);
 
-      if (agendamentosCliente.length === 0) return null;
+    const dataAgendamentoMaisRecente = agendamentosCliente
+      .map((a) => a.dia_agendado)
+      .sort((a, b) => b - a)[0] || dataInicio;
 
-      // Para cada cliente, pega o agendamento mais recente (o maior dia_agendado) antes ou igual ao fim do mês
-      const dataAgendamentoMaisRecente = agendamentosCliente
-        .map((a) => a.dia_agendado)
-        .sort((a, b) => b - a)[0];
+    const datasColetasPrevistas = diasSemana.length > 0
+      ? gerarDatasPrevistas(diasSemana, dataAgendamentoMaisRecente, dataFim)
+      : [];
 
-      // Gerar datas previstas a partir da data do agendamento mais recente até o fim do mês selecionado
-      const datasColetasPrevistas =
-        diasSemana.length > 0
-          ? gerarDatasPrevistas(diasSemana, dataAgendamentoMaisRecente, dataFim)
-          : [];
+    const datasPrevistasFormatadas = datasColetasPrevistas
+      .map((d) => d.toISOString().split("T")[0])
+      .filter((d) => !datasRealizadas.includes(d)); // só marca como P se ainda não foi realizado
 
-      // Unifica as datas das coletas previstas + agendamentos (que sejam >= data do agendamento)
-      const datasUnificadasSet = new Set([
-        ...datasColetasPrevistas.map((d) => d.toISOString().split("T")[0]),
-        ...agendamentosCliente
-          .map((a) => a.dia_agendado.toISOString().split("T")[0])
-          .filter((d) => {
-            return new Date(d) >= dataAgendamentoMaisRecente;
-          }),
-      ]);
+    const todas = new Set([...datasPrevistasFormatadas, ...datasRealizadas]);
 
-      const total_previstos = datasUnificadasSet.size;
-
-      if (total_previstos === 0) return null;
-
-      return {
-        nome_cliente: cliente.nome_cliente,
-        zona: zona?.nome_da_zona || "Não definida",
-        total_previstos,
-        datas_previstas: Array.from(datasUnificadasSet).sort(),
-      };
-    })
-    .filter(Boolean);
+    return {
+      nome_cliente: cliente.nome_cliente,
+      zona: zona?.nome_da_zona || "Não definida",
+      datas_previstas: Array.from(todas).sort(),
+      datas_realizadas: datasRealizadas,
+      total_previstos: todas.size,
+    };
+  }).filter(Boolean);
 }
 
 module.exports = {
