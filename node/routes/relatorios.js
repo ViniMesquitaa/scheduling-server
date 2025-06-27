@@ -76,6 +76,7 @@ router.get("/coletas-por-cliente", async (req, res) => {
       },
     });
 
+    // Buscar agendamentos no período
     const agendamentos = await prisma.agendamento.findMany({
       where: {
         dia_agendado: {
@@ -113,7 +114,7 @@ router.get("/coletas-por-cliente", async (req, res) => {
       while (data <= end) {
         const diaSemana = data.toLocaleDateString("pt-BR", {
           weekday: "short",
-        }).toLowerCase();
+        }).toLowerCase().replace(".", ""); // Corrigido
 
         if (diasSemana.includes(diaSemana)) {
           datasPrevistas.push(data.toISOString().slice(0, 10));
@@ -125,10 +126,14 @@ router.get("/coletas-por-cliente", async (req, res) => {
       // Verifica se houve coleta realizada ou cancelada nessas datas
       const ags = agendamentosPorCliente.get(cliente.id_cliente) || [];
       const realizadas = new Set(
-        ags.filter((a) => a.status === "REALIZADO").map((a) => a.dia_agendado.toISOString().slice(0, 10))
+        ags
+          .filter((a) => a.status.toUpperCase() === "REALIZADO")
+          .map((a) => a.dia_agendado.toISOString().slice(0, 10))
       );
       const canceladas = new Set(
-        ags.filter((a) => a.status === "CANCELADO").map((a) => a.dia_agendado.toISOString().slice(0, 10))
+        ags
+          .filter((a) => a.status.toUpperCase() === "CANCELADO")
+          .map((a) => a.dia_agendado.toISOString().slice(0, 10))
       );
 
       // Contagens
