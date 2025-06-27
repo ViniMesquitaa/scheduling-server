@@ -86,43 +86,18 @@ function agruparPorCliente(coletas, agendamentos) {
 }
 
 function gerarDatasPrevistas(diasSemana, dataInicio, dataFim) {
-  const mapaDias = {
-    dom: 0,
-    seg: 1,
-    ter: 2,
-    qua: 3,
-    qui: 4,
-    sex: 5,
-    sab: 6,
-  };
+  const datas = [];
+  const data = new Date(dataInicio);
 
-  const normalizar = (str) =>
-    str
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase();
-
-  const diasNumeros = diasSemana
-    .map((dia) => {
-      const chave = normalizar(dia);
-      return mapaDias[chave];
-    })
-    .filter((v) => v !== undefined);
-
-  const datasPrevistas = [];
-  let atual = new Date(dataInicio);
-
-  while (atual <= dataFim) {
-    const diaDaSemana = atual.getDay();
-    if (diasNumeros.includes(diaDaSemana)) {
-      const dataClone = new Date(atual);
-      dataClone.setHours(0, 0, 0, 0);
-      datasPrevistas.push(dataClone);
+  while (data <= dataFim) {
+    const diaSemana = data.getDay(); 
+    if (diasSemana.includes(diaSemana)) {
+      datas.push(new Date(data));
     }
-    atual.setDate(atual.getDate() + 1);
+    data.setDate(data.getDate() + 1);
   }
 
-  return datasPrevistas;
+  return datas;
 }
 
 function parseDias(dias) {
@@ -171,7 +146,6 @@ function agruparPrevisoesPorCliente(
       else if (ag.status === "PENDENTE") pendentes.add(dataStr);
     });
 
-    // Gera previsões com base na zona do cliente
     const datasPrevistas =
       diasSemana.length > 0
         ? gerarDatasPrevistas(diasSemana, dataInicio, dataFim)
@@ -181,7 +155,6 @@ function agruparPrevisoesPorCliente(
       (d) => d.toISOString().split("T")[0]
     );
 
-    // Evita duplicidade: se data estiver realizada/cancelada/pendente, mantém
     const datasCompletas = new Set([
       ...datasPrevistasStr,
       ...realizadas,
