@@ -53,6 +53,7 @@ router.get("/agendamentos-cancelados", async (req, res) => {
     res.status(500).json({ error: "Erro ao buscar agendamentos cancelados" });
   }
 });
+
 router.get("/coletas-por-cliente", async (req, res) => {
   const { startDate, endDate } = req.query;
   if (!startDate || !endDate)
@@ -65,7 +66,7 @@ router.get("/coletas-por-cliente", async (req, res) => {
   end.setHours(23, 59, 59, 999);
 
   try {
-    // Buscar clientes com suas zonas e dias de coleta
+    // Buscar clientes com seus endereços e zonas
     const clientes = await prisma.cliente.findMany({
       include: {
         endereco: {
@@ -76,7 +77,7 @@ router.get("/coletas-por-cliente", async (req, res) => {
       },
     });
 
-    // Buscar agendamentos no período
+    // Buscar agendamentos no período selecionado
     const agendamentos = await prisma.agendamento.findMany({
       where: {
         dia_agendado: {
@@ -104,27 +105,33 @@ router.get("/coletas-por-cliente", async (req, res) => {
 
     for (const cliente of clientes) {
       const zona = cliente.endereco?.zona;
-      const dias = zona?.dias_coleta || [];
-      const diasSemana = dias.map((dia) => dia.toLowerCase());
+      
+      // Pega o campo correto dias do JSON, garantindo ser array
+      const dias = Array.isArray(zona?.dias) ? zona.dias : [];
+      // Normaliza dias para lowercase e remove pontos (ex: "seg." -> "seg")
+      const diasSemana = dias.map((dia) => dia.toLowerCase().replace(".", ""));
 
       let datasPrevistas = [];
 
-      // Gerar datas previstas com base nos dias da zona
-      let data = new Date(start);
-      while (data <= end) {
-        const diaSemana = data.toLocaleDateString("pt-BR", {
-          weekday: "short",
-        }).toLowerCase().replace(".", ""); // Corrigido
-
+      // Gera datas previstas no intervalo baseado nos dias da zona
+      let dataAtual = new Date(start);
+      while (dataAtual <= end) {
+        const diaSemana = dataAtual
+          .toLocaleDateString("pt-BR", { weekday: "short" })
+          .toLowerCase()
+          .replace(".", "");
+        
         if (diasSemana.includes(diaSemana)) {
-          datasPrevistas.push(data.toISOString().slice(0, 10));
+          datasPrevistas.push(dataAtual.toISOString().slice(0, 10));
         }
 
-        data.setDate(data.getDate() + 1);
+        dataAtual.setDate(dataAtual.getDate() + 1);
       }
 
-      // Verifica se houve coleta realizada ou cancelada nessas datas
+      // Pega agendamentos do cliente no período
       const ags = agendamentosPorCliente.get(cliente.id_cliente) || [];
+
+      // Cria sets para status realizados e cancelados (baseado na data do agendamento)
       const realizadas = new Set(
         ags
           .filter((a) => a.status.toUpperCase() === "REALIZADO")
@@ -136,16 +143,16 @@ router.get("/coletas-por-cliente", async (req, res) => {
           .map((a) => a.dia_agendado.toISOString().slice(0, 10))
       );
 
-      // Contagens
+      // Contar previstas, realizadas e canceladas
       let previstas = 0;
-      let feitas = 0;
-      let cancel = 0;
+      let realizadasCount = 0;
+      let canceladasCount = 0;
 
-      for (const data of datasPrevistas) {
-        if (realizadas.has(data)) {
-          feitas++;
-        } else if (canceladas.has(data)) {
-          cancel++;
+      for (const d of datasPrevistas) {
+        if (realizadas.has(d)) {
+          realizadasCount++;
+        } else if (canceladas.has(d)) {
+          canceladasCount++;
         } else {
           previstas++;
         }
@@ -156,8 +163,8 @@ router.get("/coletas-por-cliente", async (req, res) => {
         zona: zona?.nome_da_zona || "Indefinida",
         cor: zona?.cor || "cinza",
         coletasPrevistas: previstas,
-        coletasRealizadas: feitas,
-        coletasCanceladas: cancel,
+        coletasRealizadas: realizadasCount,
+        coletasCanceladas: canceladasCount,
       });
     }
 
@@ -167,6 +174,7 @@ router.get("/coletas-por-cliente", async (req, res) => {
     res.status(500).json({ error: "Erro ao buscar coletas por cliente" });
   }
 });
+
 
 router.get("/coletas-realizadas", async (req, res) => {
   const { nomeCliente, nomeZona, startDate, endDate } = req.query;
