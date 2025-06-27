@@ -70,93 +70,69 @@ router.get("/coletas-por-cliente", async (req, res) => {
   }
 
   try {
-    // 1. Agrupar agendamentos por cliente e status, filtrando pela data
     const dados = await prisma.agendamento.groupBy({
       by: ["id_cliente", "status"],
       where: {
-        dia_agendado: {
-          gte: start,
-          lte: end,
-        },
+        dia_agendado: { gte: start, lte: end }
       },
-      _count: {
-        _all: true,
-      },
+      _count: { _all: true },
     });
 
-    if (dados.length === 0) return res.json([]);
+    const ids = [...new Set(dados.map(d => d.id_cliente))];
+    if (ids.length === 0) return res.json([]);
 
-    // 2. Pegar ids únicos dos clientes
-    const clienteIds = [...new Set(dados.map((item) => item.id_cliente))];
-
-    // 3. Buscar clientes junto com endereço e zona (via relacionamento)
     const clientes = await prisma.cliente.findMany({
-      where: { id_cliente: { in: clienteIds } },
+      where: { id_cliente: { in: ids } },
       select: {
         id_cliente: true,
         nome_cliente: true,
         endereco: {
           select: {
             zona: {
-              select: {
-                nome_da_zona: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    // 4. Criar mapa clienteId -> { nome_cliente, zona }
-    const clienteMap = new Map(
-      clientes.map((cli) => [
-        cli.id_cliente,
-        {
-          nome: cli.nome_cliente,
-          zona: cli.endereco?.zona?.nome_da_zona || "Indefinida",
-        },
-      ])
-    );
-
-    // 5. Montar resultado agregando os status
-    const resultadoMap = new Map();
-
-    dados.forEach(({ id_cliente, status, _count }) => {
-      if (!resultadoMap.has(id_cliente)) {
-        resultadoMap.set(id_cliente, {
-          nome_cliente: clienteMap.get(id_cliente)?.nome || "Cliente não encontrado",
-          zona: clienteMap.get(id_cliente)?.zona || "Indefinida",
-          coletasRealizadas: 0,
-          coletasPrevistas: 0,
-          coletasCanceladas: 0,
-        });
-      }
-      const clienteData = resultadoMap.get(id_cliente);
-
-      if (status === "REALIZADO") clienteData.coletasRealizadas = _count._all;
-      else if (status === "PENDENTE") clienteData.coletasPrevistas = _count._all;
-      else if (status === "CANCELADO") clienteData.coletasCanceladas = _count._all;
-    });
-
-    // 6. Garantir que clientes sem agendamento apareçam também (opcional)
-    clientes.forEach(({ id_cliente }) => {
-      if (!resultadoMap.has(id_cliente)) {
-        resultadoMap.set(id_cliente, {
-          nome_cliente: clienteMap.get(id_cliente)?.nome || "Cliente não encontrado",
-          zona: clienteMap.get(id_cliente)?.zona || "Indefinida",
-          coletasRealizadas: 0,
-          coletasPrevistas: 0,
-          coletasCanceladas: 0,
-        });
+              select: { nome_da_zona: true, cor: true }
+            }
+          }
+        }
       }
     });
 
-    const resultado = Array.from(resultadoMap.values());
+    const mapCli = new Map(clientes.map(c => [
+      c.id_cliente,
+      {
+        nome: c.nome_cliente,
+        zona: c.endereco?.zona?.nome_da_zona || "Indefinida",
+        cor: c.endereco?.zona?.cor || "gray"
+      }
+    ]));
 
-    return res.json(resultado);
+    const result = new Map();
+    dados.forEach(({ id_cliente, status, _count: cnt }) => {
+      if (!result.has(id_cliente)) {
+        const base = mapCli.get(id_cliente) || { nome: "Cliente não encontrado", zona: "Indefinida", cor: "gray" };
+        result.set(id_cliente, { 
+          nome_cliente: base.nome, zona: base.zona, cor: base.cor,
+          coletasRealizadas: 0, coletasPrevistas: 0, coletasCanceladas: 0
+        });
+      }
+      const rec = result.get(id_cliente);
+      if (status === "REALIZADO") rec.coletasRealizadas = cnt._all;
+      if (status === "PENDENTE") rec.coletasPrevistas = cnt._all;
+      if (status === "CANCELADO") rec.coletasCanceladas = cnt._all;
+    });
+
+    // Garantir todos clientes listados
+    ids.forEach(id => {
+      if (!result.has(id)) {
+        const base = mapCli.get(id);
+        result.set(id, { nome_cliente: base?.nome || "...", zona: base?.zona || "...", cor: base?.cor || "gray",
+          coletasRealizadas:0, coletasPrevistas:0, coletasCanceladas:0 });
+      }
+    });
+
+    res.json(Array.from(result.values()));
   } catch (err) {
-    console.error("Erro ao buscar coletas por cliente:", err);
-    return res.status(500).json({ error: "Erro ao buscar coletas por cliente" });
+    console.error(err);
+    res.status(500).json({ error: "Erro ao buscar coletas por cliente" });
   }
 });
 
