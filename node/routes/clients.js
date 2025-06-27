@@ -156,18 +156,22 @@ router.get("/consulta-cliente-telefone/:telefone", async (req, res) => {
 
     const temAgendamento = cliente.agendamentos.length > 0;
 
+    const agendamentosFormatados = cliente.agendamentos.map((ag) => ({
+      dia_agendado: new Date(ag.dia_agendado).toLocaleDateString("pt-BR"),
+      turno_agendado: ag.turno_agendado,
+    }));
+
     res.status(200).json({
       nome_cliente: cliente.nome_cliente,
       id_cliente: cliente.id_cliente,
       tem_agendamento: temAgendamento,
-      agendamentos: cliente.agendamentos,
+      agendamentos: agendamentosFormatados,
     });
   } catch (error) {
     console.error("Erro ao buscar cliente:", error);
     res.status(500).json({ error: "Erro ao buscar o cliente" });
   }
 });
-
 
 router.put("/:telefone", async (req, res) => {
   const { telefone } = req.params;
