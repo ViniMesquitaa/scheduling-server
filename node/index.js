@@ -11,7 +11,7 @@ const zona = require('./routes/zonas');
 const relatoriosRouter = require('./routes/relatorios');
 const admin = require('./routes/admin');
 
-const verifyApiToken = require('./auth/verifyApiToken');
+// const verifyApiToken = require('./auth/verifyApiToken');
 const corsOptions = { 
   credentials: true, 
   origin: [
@@ -27,15 +27,15 @@ app.get('/', (req, res) => {
   res.send('API está rodando com sucesso.');
 });
 
-app.use((req, res, next) => {
-  if (req.method === 'GET') {
-    return next();
-  }
-  if (req.path === '/') {
-    return next();
-  }
-  verifyApiToken(req, res, next);
-});
+// app.use((req, res, next) => {
+//   if (req.method === 'GET') {
+//     return next();
+//   }
+//   if (req.path === '/') {
+//     return next();
+//   }
+//   verifyApiToken(req, res, next);
+// });
 
 app.use('/coletas', coletasRoutes);
 app.use('/clientes', clients);
