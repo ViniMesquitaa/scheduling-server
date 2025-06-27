@@ -3,9 +3,6 @@ const router = express.Router();
 const { PrismaClient, StatusAgendamento } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-
-
-
 function parseData(dataString) {
   if (!dataString) return undefined;
 
@@ -181,14 +178,14 @@ router.get("/", async (req, res) => {
   try {
     const agendamentos = await prisma.agendamento.findMany({
       orderBy: {
-        id_agendamento: 'asc',
+        id_agendamento: "asc",
       },
       include: {
         cliente: {
           select: {
             nome_cliente: true,
             qr_code: true,
-            telefone_cliente: true, 
+            telefone_cliente: true,
             endereco: {
               include: {
                 zona: true,
@@ -224,7 +221,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-
 router.get("/pendentes", async (req, res) => {
   try {
     const agendamentos = await prisma.agendamento.findMany({
@@ -250,60 +246,74 @@ router.get("/pendentes", async (req, res) => {
     res.status(500).json({ error: "Erro ao buscar agendamentos pendentes" });
   }
 });
+
 router.put("/registro", async (req, res) => {
-  const { qr_code, dia_realizado, hora_realizado, id_usuario } = req.body;
+  const { qr_code, dia_realizado, hora_realizado, id_usuario, turno_agendado } = req.body;
 
   try {
     const cliente = await prisma.cliente.findUnique({
       where: { qr_code },
       include: {
-        agendamentos: {
-          where: { status: StatusAgendamento.PENDENTE },
-          orderBy: { dia_agendado: "asc" },
-          take: 1,
-        },
+        endereco: { include: { zona: true } },
       },
     });
 
     if (!cliente) {
-      return res
-        .status(404)
-        .json({ error: "Cliente não encontrado com esse QR Code." });
+      return res.status(404).json({ error: "Cliente não encontrado." });
     }
 
-    if (!cliente.agendamentos || cliente.agendamentos.length === 0) {
-      return res.status(404).json({
-        error: "Nenhum agendamento pendente encontrado para este cliente.",
-      });
-    }
+    const dataRealizada = new Date(dia_realizado);
 
-    const agendamentoParaAtualizar = cliente.agendamentos[0];
-
-    const agendamentoAtualizado = await prisma.agendamento.update({
-      where: { id_agendamento: agendamentoParaAtualizar.id_agendamento },
-      data: {
-        dia_realizado: parseData(dia_realizado),
-        horario_realizado: hora_realizado || undefined,
-        status: StatusAgendamento.REALIZADO,
-        id_usuario: id_usuario, 
-      },
-      include: {
-        cliente: {
-          select: { nome_cliente: true },
-        },
-        zona: true,
-        usuario: { select: { nome: true } }, // incluir usuário responsável no retorno
+    let agendamento = await prisma.agendamento.findFirst({
+      where: {
+        id_cliente: cliente.id_cliente,
+        dia_agendado: dataRealizada,
       },
     });
 
-    res.status(200).json(formatAgendamento(agendamentoAtualizado));
+    if (agendamento) {
+      agendamento = await prisma.agendamento.update({
+        where: { id_agendamento: agendamento.id_agendamento },
+        data: {
+          dia_realizado: dataRealizada,
+          horario_realizado: hora_realizado || undefined,
+          status: "REALIZADO",
+          id_usuario,
+          turno_agendado: turno_agendado || agendamento.turno_agendado,
+        },
+        include: {
+          cliente: { select: { nome_cliente: true } },
+          zona: true,
+          usuario: { select: { nome: true } },
+        },
+      });
+    } else {
+      agendamento = await prisma.agendamento.create({
+        data: {
+          id_cliente: cliente.id_cliente,
+          id_zona: cliente.endereco.zona.id,
+          dia_agendado: dataRealizada,
+          dia_realizado: dataRealizada,
+          horario_realizado: hora_realizado || undefined,
+          status: "REALIZADO",
+          id_usuario,
+          turno_agendado: turno_agendado || "Indefinido",
+        },
+        include: {
+          cliente: { select: { nome_cliente: true } },
+          zona: true,
+          usuario: { select: { nome: true } },
+        },
+      });
+    }
+
+    res.status(200).json(agendamento);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Erro ao registrar o agendamento." });
   }
 });
 
-//Atualização de agendamento através do telefone do cliente(Chatbot)
 router.put("/telefone/:telefone_cliente", async (req, res) => {
   const { telefone_cliente } = req.params;
   data = req.body;
@@ -373,7 +383,6 @@ router.put("/telefone/:telefone_cliente", async (req, res) => {
   }
 });
 
-// Cancelar agendamento
 router.delete("/telefone/:telefone_cliente", async (req, res) => {
   const { telefone_cliente } = req.params;
 
@@ -400,7 +409,11 @@ router.delete("/telefone/:telefone_cliente", async (req, res) => {
     );
 
     if (!agendamento) {
-      return res.status(404).json({ error: "Nenhum agendamento PENDENTE encontrado para esse cliente." });
+      return res
+        .status(404)
+        .json({
+          error: "Nenhum agendamento PENDENTE encontrado para esse cliente.",
+        });
     }
 
     await prisma.agendamento.update({
