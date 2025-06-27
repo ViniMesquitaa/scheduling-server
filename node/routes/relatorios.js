@@ -208,9 +208,7 @@ router.get("/coletas-previstas", async (req, res) => {
   const { nomeCliente, nomeZona, startDate, endDate } = req.query;
 
   if (!startDate || !endDate) {
-    return res
-      .status(400)
-      .json({ error: "Informe o período (startDate e endDate)." });
+    return res.status(400).json({ error: "Informe o período (startDate e endDate)." });
   }
 
   const dataInicio = new Date(`${startDate}T03:00:00Z`);
@@ -232,12 +230,13 @@ router.get("/coletas-previstas", async (req, res) => {
       if (!zona) return res.status(404).json({ error: "Zona não encontrada" });
       zonaId = zona.id;
     }
+
     const { filtroAgendamento } = montarFiltros({
       nomeCliente,
       startDate,
       endDate,
       zonaId,
-      status: "PENDENTE",
+      status: ["PENDENTE", "REALIZADO"],
     });
 
     const clientes = await prisma.cliente.findMany({
@@ -247,7 +246,7 @@ router.get("/coletas-previstas", async (req, res) => {
         nome_cliente: true,
         endereco: {
           select: {
-            zona: { select: { id: true, nome_da_zona: true, dias: true } },
+            zona: { select: { id: true, nome_da_zona: true, dias: true, cor: true } },
           },
         },
       },
@@ -265,13 +264,15 @@ router.get("/coletas-previstas", async (req, res) => {
       select: {
         id_agendamento: true,
         dia_agendado: true,
+        dia_realizado: true,
+        status: true,
         cliente: {
           select: {
             id_cliente: true,
             nome_cliente: true,
             endereco: {
               select: {
-                zona: { select: { id: true, nome_da_zona: true, dias: true } },
+                zona: { select: { id: true, nome_da_zona: true, dias: true, cor: true } },
               },
             },
           },
@@ -285,6 +286,7 @@ router.get("/coletas-previstas", async (req, res) => {
       dataInicio,
       dataFim
     );
+
     const resultadoFiltrado = resultadoCompleto.filter(
       (c) => c.datas_previstas.length > 0
     );
