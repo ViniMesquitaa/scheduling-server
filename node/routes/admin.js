@@ -217,14 +217,7 @@ router.put("/:id", async (req, res) => {
   const token = authHeader.split(" ")[1];
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    if (decoded.id !== id_admin) {
-      return res
-        .status(403)
-        .json({ error: "Você não tem permissão para editar este usuário." });
-    }
-
+    
     const admin = await prisma.admin.findUnique({ where: { id_admin } });
 
     if (!admin) {
