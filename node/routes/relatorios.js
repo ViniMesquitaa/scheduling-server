@@ -53,7 +53,6 @@ router.get("/agendamentos-cancelados", async (req, res) => {
     res.status(500).json({ error: "Erro ao buscar agendamentos cancelados" });
   }
 });
-
 router.get("/coletas-por-cliente", async (req, res) => {
   const { startDate, endDate } = req.query;
   if (!startDate || !endDate)
@@ -66,64 +65,96 @@ router.get("/coletas-por-cliente", async (req, res) => {
   end.setHours(23, 59, 59, 999);
 
   try {
-    // Buscar todos os agendamentos no intervalo, já trazendo cliente e zona
-    const agendamentos = await prisma.agendamento.findMany({
-      where: {
-        dia_agendado: { gte: start, lte: end },
-      },
-      select: {
-        id_cliente: true,
-        status: true,
-        cliente: {
-          select: {
-            nome_cliente: true,
-            endereco: {
-              select: {
-                zona: {
-                  select: {
-                    nome_da_zona: true,
-                    cor: true,
-                  },
-                },
-              },
-            },
+    // Buscar clientes com suas zonas e dias de coleta
+    const clientes = await prisma.cliente.findMany({
+      include: {
+        endereco: {
+          include: {
+            zona: true,
           },
         },
       },
     });
 
-    // Map para acumular por cliente
-    const mapaClientes = new Map();
+    const agendamentos = await prisma.agendamento.findMany({
+      where: {
+        dia_agendado: {
+          gte: start,
+          lte: end,
+        },
+      },
+      select: {
+        id_cliente: true,
+        dia_agendado: true,
+        status: true,
+      },
+    });
 
+    // Agrupar agendamentos por cliente
+    const agendamentosPorCliente = new Map();
     for (const ag of agendamentos) {
-      const idCli = ag.id_cliente;
-      if (!mapaClientes.has(idCli)) {
-        const zona = ag.cliente.endereco?.zona;
-        mapaClientes.set(idCli, {
-          nome_cliente: ag.cliente.nome_cliente,
-          zona: zona?.nome_da_zona || "Indefinida",
-          cor: zona?.cor || "gray",
-          coletasPrevistas: 0,
-          coletasRealizadas: 0,
-          coletasCanceladas: 0,
-        });
+      if (!agendamentosPorCliente.has(ag.id_cliente)) {
+        agendamentosPorCliente.set(ag.id_cliente, []);
       }
-      const clienteData = mapaClientes.get(idCli);
-      switch (ag.status) {
-        case "REALIZADO":
-          clienteData.coletasRealizadas++;
-          break;
-        case "PENDENTE":
-          clienteData.coletasPrevistas++;
-          break;
-        case "CANCELADO":
-          clienteData.coletasCanceladas++;
-          break;
-      }
+      agendamentosPorCliente.get(ag.id_cliente).push(ag);
     }
 
-    // Converter Map para array
-    const resultado = Array.from(mapaClientes.values());
+    const resultado = [];
+
+    for (const cliente of clientes) {
+      const zona = cliente.endereco?.zona;
+      const dias = zona?.dias_coleta || [];
+      const diasSemana = dias.map((dia) => dia.toLowerCase());
+
+      let datasPrevistas = [];
+
+      // Gerar datas previstas com base nos dias da zona
+      let data = new Date(start);
+      while (data <= end) {
+        const diaSemana = data.toLocaleDateString("pt-BR", {
+          weekday: "short",
+        }).toLowerCase();
+
+        if (diasSemana.includes(diaSemana)) {
+          datasPrevistas.push(data.toISOString().slice(0, 10));
+        }
+
+        data.setDate(data.getDate() + 1);
+      }
+
+      // Verifica se houve coleta realizada ou cancelada nessas datas
+      const ags = agendamentosPorCliente.get(cliente.id_cliente) || [];
+      const realizadas = new Set(
+        ags.filter((a) => a.status === "REALIZADO").map((a) => a.dia_agendado.toISOString().slice(0, 10))
+      );
+      const canceladas = new Set(
+        ags.filter((a) => a.status === "CANCELADO").map((a) => a.dia_agendado.toISOString().slice(0, 10))
+      );
+
+      // Contagens
+      let previstas = 0;
+      let feitas = 0;
+      let cancel = 0;
+
+      for (const data of datasPrevistas) {
+        if (realizadas.has(data)) {
+          feitas++;
+        } else if (canceladas.has(data)) {
+          cancel++;
+        } else {
+          previstas++;
+        }
+      }
+
+      resultado.push({
+        nome_cliente: cliente.nome_cliente,
+        zona: zona?.nome_da_zona || "Indefinida",
+        cor: zona?.cor || "cinza",
+        coletasPrevistas: previstas,
+        coletasRealizadas: feitas,
+        coletasCanceladas: cancel,
+      });
+    }
 
     res.json(resultado);
   } catch (error) {
