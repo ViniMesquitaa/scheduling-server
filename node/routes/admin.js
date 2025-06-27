@@ -262,11 +262,25 @@ router.delete("/:id", async (req, res) => {
     }
 
     const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    jwt.verify(token, process.env.JWT_SECRET);
+    const idAdminToDelete = Number(req.params.id);
+    const idAdminAuthenticated = decoded.id_admin || decoded.id;
+
+    if (idAdminToDelete === idAdminAuthenticated) {
+      return res
+        .status(403)
+        .json({ message: "Você não pode excluir a si mesmo." });
+    }
+
+    if (idAdminToDelete === 1) {
+      return res
+        .status(403)
+        .json({ message: "Não é possível deletar o administrador padrão" });
+    }
 
     const deletedAdmin = await prisma.admin.delete({
-      where: { id_admin: Number(req.params.id) },
+      where: { id_admin: idAdminToDelete },
     });
 
     res.json({ message: "Admin deletado com sucesso", deletedAdmin });
@@ -286,11 +300,6 @@ router.delete("/:id", async (req, res) => {
         message: "Não é possível deletar o administrador, pois ele está vinculado a outras entidades.",
       });
     }
-
-    if (id_admin === 1)
-      return res
-        .status(403)
-        .json({ message: "Não é possível deletar o administrador padrão" });
 
     res.status(500).json({ message: "Erro no servidor" });
   }
