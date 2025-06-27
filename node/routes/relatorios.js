@@ -53,81 +53,84 @@ router.get("/agendamentos-cancelados", async (req, res) => {
     res.status(500).json({ error: "Erro ao buscar agendamentos cancelados" });
   }
 });
+
 router.get("/coletas-por-cliente", async (req, res) => {
   const { startDate, endDate } = req.query;
-  if (!startDate || !endDate) return res.status(400).json({ error: "Datas inválidas ou ausentes" });
+  if (!startDate || !endDate)
+    return res.status(400).json({ error: "Datas inválidas ou ausentes" });
 
   const start = new Date(startDate);
   const end = new Date(endDate);
-  if (isNaN(start) || isNaN(end)) return res.status(400).json({ error: "Datas inválidas" });
+  if (isNaN(start) || isNaN(end))
+    return res.status(400).json({ error: "Datas inválidas" });
   end.setHours(23, 59, 59, 999);
 
   try {
-    const dados = await prisma.agendamento.groupBy({
-      by: ["id_cliente", "status"],
-      where: { dia_agendado: { gte: start, lte: end } },
-      _count: { _all: true }
-    });
-
-    const clienteIds = [...new Set(dados.map(d => d.id_cliente))];
-    if (clienteIds.length === 0) return res.json([]);
-
-    const clientes = await prisma.cliente.findMany({
-      where: { id_cliente: { in: clienteIds } },
+    // Buscar todos os agendamentos no intervalo, já trazendo cliente e zona
+    const agendamentos = await prisma.agendamento.findMany({
+      where: {
+        dia_agendado: { gte: start, lte: end },
+      },
       select: {
         id_cliente: true,
-        nome_cliente: true,
-        endereco: {
+        status: true,
+        cliente: {
           select: {
-            zona: {
+            nome_cliente: true,
+            endereco: {
               select: {
-                nome_da_zona: true,
-                cor: true
-              }
-            }
-          }
-        }
+                zona: {
+                  select: {
+                    nome_da_zona: true,
+                    cor: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Map para acumular por cliente
+    const mapaClientes = new Map();
+
+    for (const ag of agendamentos) {
+      const idCli = ag.id_cliente;
+      if (!mapaClientes.has(idCli)) {
+        const zona = ag.cliente.endereco?.zona;
+        mapaClientes.set(idCli, {
+          nome_cliente: ag.cliente.nome_cliente,
+          zona: zona?.nome_da_zona || "Indefinida",
+          cor: zona?.cor || "gray",
+          coletasPrevistas: 0,
+          coletasRealizadas: 0,
+          coletasCanceladas: 0,
+        });
       }
-    });
-
-    const mapaCli = new Map(clientes.map(c => [
-      c.id_cliente,
-      {
-        nome: c.nome_cliente,
-        zona: c.endereco?.zona?.nome_da_zona || "Indefinida",
-        cor: c.endereco?.zona?.cor || "gray"
+      const clienteData = mapaClientes.get(idCli);
+      switch (ag.status) {
+        case "REALIZADO":
+          clienteData.coletasRealizadas++;
+          break;
+        case "PENDENTE":
+          clienteData.coletasPrevistas++;
+          break;
+        case "CANCELADO":
+          clienteData.coletasCanceladas++;
+          break;
       }
-    ]));
+    }
 
-    const resultMap = new Map();
+    // Converter Map para array
+    const resultado = Array.from(mapaClientes.values());
 
-    clienteIds.forEach(id => {
-      const info = mapaCli.get(id);
-      resultMap.set(id, {
-        nome_cliente: info.nome,
-        zona: info.zona,
-        cor: info.cor,
-        coletasPrevistas: 0,
-        coletasRealizadas: 0,
-        coletasCanceladas: 0,
-      });
-    });
-
-    dados.forEach(({ id_cliente, status, _count }) => {
-      const rec = resultMap.get(id_cliente);
-      if (!rec) return;
-      if (status === "REALIZADO") rec.coletasRealizadas += _count._all;
-      else if (status === "PENDENTE") rec.coletasPrevistas += _count._all;
-      else if (status === "CANCELADO") rec.coletasCanceladas += _count._all;
-    });
-
-    res.json(Array.from(resultMap.values()));
-  } catch (err) {
-    console.error(err);
+    res.json(resultado);
+  } catch (error) {
+    console.error(error);
     res.status(500).json({ error: "Erro ao buscar coletas por cliente" });
   }
 });
-
 
 router.get("/coletas-realizadas", async (req, res) => {
   const { nomeCliente, nomeZona, startDate, endDate } = req.query;
@@ -215,11 +218,9 @@ router.get("/coletas-previstas", async (req, res) => {
   const diffEmDias = (dataFim - dataInicio) / (1000 * 60 * 60 * 24);
 
   if (diffEmDias > 31) {
-    return res
-      .status(400)
-      .json({
-        error: "O intervalo entre as datas não pode ultrapassar 31 dias.",
-      });
+    return res.status(400).json({
+      error: "O intervalo entre as datas não pode ultrapassar 31 dias.",
+    });
   }
 
   try {
