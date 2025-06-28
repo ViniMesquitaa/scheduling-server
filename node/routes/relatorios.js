@@ -37,7 +37,7 @@ router.get("/agendamentos-cancelados", async (req, res) => {
     const resultado = agendamentos.map((a) => ({
       id: a.id_agendamento,
       cliente: a.cliente.nome_cliente,
-      data_agendada: new Date(new Date(a.dia_agendado).getTime() - 3 * 60 * 60 * 1000),
+      data_agendada: a.dia_agendado.toISOString().split("T")[0],
       turno: a.turno_agendado,
       status: a.status,
       endereco: `${a.cliente.endereco.nome_rua}, ${a.cliente.endereco.numero}, ${a.cliente.endereco.bairro}`,
